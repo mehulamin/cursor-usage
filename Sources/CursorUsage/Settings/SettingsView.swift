@@ -75,7 +75,8 @@ struct SettingsView: View {
         }
         .navigationSplitViewStyle(.balanced)
         .font(.system(size: 13 * settings.fontSize.scale))
-        .frame(minWidth: 640, maxWidth: .infinity, minHeight: 420, maxHeight: .infinity)
+        .frame(minWidth: 720, idealWidth: 760, maxWidth: .infinity,
+               minHeight: 600, idealHeight: 680, maxHeight: .infinity)
         .onAppear {
             tokenDraft = settings.sessionToken
             launchAtLogin.refresh()
