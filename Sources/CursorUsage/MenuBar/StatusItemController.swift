@@ -15,6 +15,8 @@ final class StatusItemController: NSObject, ObservableObject {
     private var settings: AppSettings { .shared }
     private var cancellables = Set<AnyCancellable>()
     private var appearanceObservation: NSKeyValueObservation?
+    private var localMouseMonitor: Any?
+    private var globalMouseMonitor: Any?
 
     private override init() {
         super.init()
@@ -169,27 +171,42 @@ final class StatusItemController: NSObject, ObservableObject {
         guard let button = statusItem?.button else { return }
 
         if let popover, popover.isShown {
-            popover.performClose(nil)
+            closePopover()
             return
         }
 
         statusItem?.menu?.cancelTracking()
 
+        // Accessory (LSUIElement) apps must activate so the popover can become key;
+        // otherwise transient dismiss-on-outside-click never fires.
+        NSApp.activate(ignoringOtherApps: true)
+
         let popover = NSPopover()
         popover.behavior = .transient
         popover.animates = true
+        popover.delegate = self
         popover.contentSize = NSSize(width: 360, height: 440)
 
         let root = DetailsPopoverView()
             .environmentObject(viewModel)
             .environmentObject(settings)
 
-        popover.contentViewController = NSHostingController(rootView: root)
+        let hosting = NSHostingController(rootView: root)
+        popover.contentViewController = hosting
         self.popover = popover
 
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+
+        // Become key on the next turn so the popover window exists.
         DispatchQueue.main.async {
-            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-            NSApp.activate(ignoringOtherApps: true)
+            if let window = hosting.view.window {
+                window.makeKeyAndOrderFront(nil)
+                window.makeFirstResponder(hosting.view)
+            }
+            // Delay monitors so the opening click doesn't immediately dismiss.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                self?.installOutsideClickMonitors()
+            }
         }
     }
 
@@ -207,7 +224,58 @@ final class StatusItemController: NSObject, ObservableObject {
     }
 
     func closePopover() {
+        removeOutsideClickMonitors()
         popover?.performClose(nil)
+        popover = nil
+    }
+
+    private func installOutsideClickMonitors() {
+        removeOutsideClickMonitors()
+
+        localMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+            self?.handlePotentialOutsideClick(event)
+            return event
+        }
+
+        globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
+            self?.closePopover()
+        }
+    }
+
+    private func removeOutsideClickMonitors() {
+        if let localMouseMonitor {
+            NSEvent.removeMonitor(localMouseMonitor)
+            self.localMouseMonitor = nil
+        }
+        if let globalMouseMonitor {
+            NSEvent.removeMonitor(globalMouseMonitor)
+            self.globalMouseMonitor = nil
+        }
+    }
+
+    private func handlePotentialOutsideClick(_ event: NSEvent) {
+        guard let popover, popover.isShown else { return }
+
+        // Clicks on the status item are handled by the toggle in showDetails.
+        if isClickOnStatusItem(event) {
+            return
+        }
+
+        if let popoverWindow = popover.contentViewController?.view.window,
+           event.window == popoverWindow {
+            return
+        }
+
+        closePopover()
+    }
+
+    private func isClickOnStatusItem(_ event: NSEvent) -> Bool {
+        guard let button = statusItem?.button, let buttonWindow = button.window else {
+            return false
+        }
+        guard event.window == buttonWindow else { return false }
+        let point = button.convert(event.locationInWindow, from: nil)
+        return button.bounds.contains(point)
     }
 }
 
@@ -215,5 +283,12 @@ extension StatusItemController: NSMenuDelegate {
     func menuDidClose(_ menu: NSMenu) {
         // Detach so left-click does not open the menu next time.
         statusItem?.menu = nil
+    }
+}
+
+extension StatusItemController: NSPopoverDelegate {
+    func popoverDidClose(_ notification: Notification) {
+        removeOutsideClickMonitors()
+        popover = nil
     }
 }
