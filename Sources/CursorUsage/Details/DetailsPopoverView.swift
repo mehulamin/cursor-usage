@@ -166,12 +166,45 @@ struct DetailsPopoverView: View {
                     .accessibilityLabel("Refresh")
                 }
             }
+
+            Text(tokenExpirationText)
+                .font(.system(size: 11 * fontScale))
+                .foregroundStyle(tokenExpirationColor)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityLabel(tokenExpirationText)
         }
     }
 
     private var isLoading: Bool {
         if case .loading = viewModel.state { return true }
         return false
+    }
+
+    private var tokenExpirationText: String {
+        TokenStore.expirationSummary(ofToken: settings.sessionToken)
+    }
+
+    /// Red when expired or fewer than 3 days left; yellow when fewer than 7 days left.
+    private var tokenExpirationColor: Color {
+        let token = settings.sessionToken
+        if token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return .secondary
+        }
+        if TokenStore.isExpired(token) {
+            return .red
+        }
+        guard let exp = TokenStore.expirationDate(ofToken: token),
+              let days = Calendar.current.dateComponents([.day], from: Date(), to: exp).day
+        else {
+            return .secondary
+        }
+        if days < 3 {
+            return .red
+        }
+        if days < 7 {
+            return .yellow
+        }
+        return .secondary
     }
 
     private func relativeTime(_ date: Date) -> String {
