@@ -11,6 +11,7 @@ struct CursorUsageApp: App {
             SettingsView()
                 .environmentObject(UsageViewModel.shared)
                 .environmentObject(AppSettings.shared)
+                .environmentObject(LaunchAtLogin.shared)
         }
     }
 }

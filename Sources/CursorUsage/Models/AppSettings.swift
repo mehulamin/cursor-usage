@@ -141,7 +141,13 @@ final class AppSettings: ObservableObject {
         let raw = defaults.string(forKey: Keys.fontSize) ?? FontSizeOption.medium.rawValue
         fontSize = FontSizeOption(rawValue: raw) ?? .medium
         let template = defaults.string(forKey: Keys.menuBarTemplate) ?? MenuBarTemplate.defaultTemplate
-        menuBarTemplate = template.isEmpty ? MenuBarTemplate.defaultTemplate : template
+        let migrated = MenuBarTemplate.migrateLegacySyntax(
+            template.isEmpty ? MenuBarTemplate.defaultTemplate : template
+        )
+        menuBarTemplate = migrated
+        if migrated != template {
+            defaults.set(migrated, forKey: Keys.menuBarTemplate)
+        }
         showAuto = defaults.object(forKey: Keys.showAuto) as? Bool ?? true
         showAPI = defaults.object(forKey: Keys.showAPI) as? Bool ?? true
         showTotal = defaults.object(forKey: Keys.showTotal) as? Bool ?? true
@@ -197,9 +203,10 @@ final class AppSettings: ObservableObject {
             sessionToken = TokenStore.normalizeToken(token)
         }
         if let value = file.menuBarTemplate {
-            menuBarTemplate = value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            menuBarTemplate = trimmed.isEmpty
                 ? MenuBarTemplate.defaultTemplate
-                : value
+                : MenuBarTemplate.migrateLegacySyntax(trimmed)
         }
         if let value = file.showAuto { showAuto = value }
         if let value = file.showAPI { showAPI = value }

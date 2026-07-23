@@ -156,5 +156,5 @@ fi
 
 finish "$(plist_version "$ROOT/Resources/Info.plist")" "$APP"
 if [[ $ADD_LOGIN -eq 0 ]]; then
-  tip "Re-run with --login to start at login."
+  tip "Enable Start at Login in Settings → General, or re-run with --login."
 fi

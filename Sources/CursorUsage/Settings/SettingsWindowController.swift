@@ -17,6 +17,7 @@ enum SettingsWindowController {
         let root = SettingsView()
             .environmentObject(UsageViewModel.shared)
             .environmentObject(AppSettings.shared)
+            .environmentObject(LaunchAtLogin.shared)
 
         let hosting = NSHostingController(rootView: root)
         hosting.sizingOptions = [.minSize]

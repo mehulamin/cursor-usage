@@ -22,7 +22,7 @@ Same workflow as [ma-quick-launch](../ma-quick-launch):
 ## Menu
 
 - **Details** — popover with progress, spend, projection, last refresh
-- **Settings…** — font size, custom menu-bar format (tags like `<total_usage>`, `<days_left>`), token, interval, version
+- **Settings…** — font size, custom menu-bar format (tags like `{total_usage}`, `{days_left}`), token, interval, version
 - **Quit**
 
 ## Auth

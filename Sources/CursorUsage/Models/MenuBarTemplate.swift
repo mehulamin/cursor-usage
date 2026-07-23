@@ -2,14 +2,16 @@ import Foundation
 
 enum MenuBarTemplate {
     /// Matches the previous hardcoded menu-bar format.
-    static let defaultTemplate = "<total_usage>% · <days_left>d"
+    static let defaultTemplate = "{total_usage}% · {days_left}d"
 
     struct Tag: Identifiable, Hashable {
         let name: String
         let description: String
 
         var id: String { name }
-        var token: String { "<\(name)>" }
+        var token: String { "{\(name)}" }
+        /// Legacy angle-bracket form kept for migration / render compatibility.
+        var legacyToken: String { "<\(name)>" }
     }
 
     static let tags: [Tag] = [
@@ -33,9 +35,9 @@ enum MenuBarTemplate {
         let values = values(for: snapshot)
         var result = template
         for tag in tags {
-            if let value = values[tag.name] {
-                result = result.replacingOccurrences(of: tag.token, with: value)
-            }
+            guard let value = values[tag.name] else { continue }
+            result = result.replacingOccurrences(of: tag.token, with: value)
+            result = result.replacingOccurrences(of: tag.legacyToken, with: value)
         }
         return result
     }
@@ -45,6 +47,15 @@ enum MenuBarTemplate {
             return render(template.isEmpty ? defaultTemplate : template, snapshot: .previewSample)
         }
         return render(template.isEmpty ? defaultTemplate : template, snapshot: snapshot)
+    }
+
+    /// Rewrites legacy `<tag>` tokens to `{tag}` so saved formats stay editable.
+    static func migrateLegacySyntax(_ template: String) -> String {
+        var result = template
+        for tag in tags {
+            result = result.replacingOccurrences(of: tag.legacyToken, with: tag.token)
+        }
+        return result
     }
 
     private static func values(for snap: UsageSnapshot) -> [String: String] {

@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 
 private enum SettingsPage: String, CaseIterable, Identifiable, Hashable {
     case general
+    case refresh
     case account
     case backup
     case about
@@ -13,6 +14,7 @@ private enum SettingsPage: String, CaseIterable, Identifiable, Hashable {
     var title: String {
         switch self {
         case .general: return "General"
+        case .refresh: return "Refresh"
         case .account: return "Account"
         case .backup: return "Backup"
         case .about: return "About"
@@ -22,6 +24,7 @@ private enum SettingsPage: String, CaseIterable, Identifiable, Hashable {
     var systemImage: String {
         switch self {
         case .general: return "gearshape"
+        case .refresh: return "arrow.clockwise"
         case .account: return "key.fill"
         case .backup: return "square.and.arrow.up.on.square"
         case .about: return "info.circle"
@@ -32,6 +35,7 @@ private enum SettingsPage: String, CaseIterable, Identifiable, Hashable {
 struct SettingsView: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var viewModel: UsageViewModel
+    @EnvironmentObject private var launchAtLogin: LaunchAtLogin
     @State private var selectedPage: SettingsPage? = .general
     @State private var tokenDraft: String = ""
     @State private var showToken = false
@@ -56,6 +60,8 @@ struct SettingsView: View {
                 switch selectedPage ?? .general {
                 case .general:
                     generalPage
+                case .refresh:
+                    refreshPage
                 case .account:
                     accountPage
                 case .backup:
@@ -72,6 +78,7 @@ struct SettingsView: View {
         .frame(minWidth: 640, maxWidth: .infinity, minHeight: 420, maxHeight: .infinity)
         .onAppear {
             tokenDraft = settings.sessionToken
+            launchAtLogin.refresh()
             if selectedPage == nil {
                 selectedPage = .general
             }
@@ -99,6 +106,39 @@ struct SettingsView: View {
 
     private var generalPage: some View {
         Form {
+            Section {
+                Toggle(
+                    "Start at Login",
+                    isOn: Binding(
+                        get: { launchAtLogin.isEnabled },
+                        set: { launchAtLogin.setEnabled($0) }
+                    )
+                )
+                .accessibilityLabel("Start at Login")
+
+                if launchAtLogin.requiresApproval {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text("Approval needed in System Settings.")
+                            .foregroundStyle(.orange)
+                            .font(.callout)
+                        Spacer()
+                        Button("Open Login Items…") {
+                            launchAtLogin.openLoginItemsSettings()
+                        }
+                    }
+                }
+
+                if let lastError = launchAtLogin.lastError {
+                    Text(lastError)
+                        .foregroundStyle(.red)
+                        .font(.callout)
+                }
+            } header: {
+                Text("Startup")
+            } footer: {
+                Text("Open Cursor Usage automatically when you log in to this Mac.")
+            }
+
             Section("Appearance") {
                 Picker("Font Size", selection: $settings.fontSize) {
                     ForEach(FontSizeOption.allCases) { option in
@@ -131,7 +171,16 @@ struct SettingsView: View {
             } footer: {
                 Text(menuBarTemplateFooter)
             }
+        }
+        .formStyle(.grouped)
+        .padding()
+        .onAppear {
+            launchAtLogin.refresh()
+        }
+    }
 
+    private var refreshPage: some View {
+        Form {
             Section {
                 Stepper(value: $settings.refreshIntervalMinutes, in: 5...60, step: 5) {
                     Text("Every \(settings.refreshIntervalMinutes) minutes")
