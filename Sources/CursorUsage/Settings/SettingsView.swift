@@ -74,7 +74,8 @@ struct SettingsView: View {
             .navigationTitle((selectedPage ?? .general).title)
         }
         .navigationSplitViewStyle(.balanced)
-        .font(.system(size: 13 * settings.fontSize.scale))
+        .font(MacUI.bodyFont(scale: settings.fontSize.scale))
+        .tint(MacUI.Colors.accent)
         .frame(minWidth: 720, idealWidth: 760, maxWidth: .infinity,
                minHeight: 600, idealHeight: 680, maxHeight: .infinity)
         .onAppear {
@@ -126,6 +127,7 @@ struct SettingsView: View {
                         Button("Open Login Items…") {
                             launchAtLogin.openLoginItemsSettings()
                         }
+                        .buttonStyle(.macSecondary)
                     }
                 }
 
@@ -166,6 +168,7 @@ struct SettingsView: View {
                 Button("Reset to Default") {
                     settings.menuBarTemplate = MenuBarTemplate.defaultTemplate
                 }
+                .buttonStyle(.macSecondary)
                 .disabled(settings.menuBarTemplate == MenuBarTemplate.defaultTemplate)
 
                 Text(menuBarTemplateFooter)
@@ -178,7 +181,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .padding()
+        .macDialogPadding()
         .onAppear {
             launchAtLogin.refresh()
         }
@@ -211,7 +214,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .padding()
+        .macDialogPadding()
     }
 
     private var accountPage: some View {
@@ -265,22 +268,27 @@ struct SettingsView: View {
                         .multilineTextAlignment(.trailing)
                 }
 
-                HStack {
-                    Button("Save Token") {
-                        saveToken()
-                    }
-                    .keyboardShortcut(.defaultAction)
-                    .disabled(!canSaveToken)
-
-                    Button("Detect from Cursor") {
-                        showingDetectToken = true
-                    }
-
+                HStack(spacing: MacUI.Density.gap) {
                     Button("Clear", role: .destructive) {
                         tokenDraft = ""
                         settings.sessionToken = ""
                         detectMessage = nil
                     }
+                    .buttonStyle(.macDestructive)
+
+                    Spacer(minLength: 0)
+
+                    Button("Detect from Cursor") {
+                        showingDetectToken = true
+                    }
+                    .buttonStyle(.macSecondary)
+
+                    Button("Save Token") {
+                        saveToken()
+                    }
+                    .buttonStyle(.macPrimary)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(!canSaveToken)
                 }
 
                 if let detectMessage {
@@ -295,7 +303,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .padding()
+        .macDialogPadding()
     }
 
     private var backupPage: some View {
@@ -303,13 +311,16 @@ struct SettingsView: View {
             Section {
                 Toggle("Include session token in export", isOn: $includeTokenInExport)
 
-                HStack {
-                    Button("Export…") {
-                        exportSettings()
-                    }
+                HStack(spacing: MacUI.Density.gap) {
                     Button("Import…") {
                         importSettings()
                     }
+                    .buttonStyle(.macSecondary)
+                    Spacer(minLength: 0)
+                    Button("Export…") {
+                        exportSettings()
+                    }
+                    .buttonStyle(.macPrimary)
                 }
 
                 if let transferMessage {
@@ -325,7 +336,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .padding()
+        .macDialogPadding()
     }
 
     private var aboutPage: some View {
@@ -343,7 +354,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .padding()
+        .macDialogPadding()
     }
 
     private var menuBarTemplateFooter: String {
@@ -451,16 +462,19 @@ private struct DetectTokenSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Label("Detect from Cursor", systemImage: "magnifyingglass")
-                    .font(.title2.weight(.semibold))
-                Spacer()
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: MacUI.Density.iconSize))
+                    .foregroundStyle(MacUI.Colors.secondaryText)
+                Text("Detect from Cursor")
+                    .font(MacUI.headlineFont(scale: 1.15))
+                    .foregroundStyle(MacUI.Colors.primaryText)
+                Spacer(minLength: 0)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 20)
-            .padding(.bottom, 12)
+            .frame(height: MacUI.Density.titleBarHeight)
+            .padding(.horizontal, MacUI.Density.dialogPad)
 
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: MacUI.Density.gap) {
                 statusSection
 
                 if let detectedToken {
@@ -468,31 +482,39 @@ private struct DetectTokenSheet: View {
                     comparisonTable(detectedToken)
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 16)
+            .padding(.horizontal, MacUI.Density.dialogPad)
+            .padding(.bottom, MacUI.Density.gap)
 
-            Divider()
+            Rectangle()
+                .fill(MacUI.Colors.divider)
+                .frame(height: 1)
 
-            HStack {
-                Spacer()
-                Button("Cancel") {
-                    dismiss()
+            MacDialogFooter {
+                EmptyView()
+            } trailing: {
+                HStack(spacing: MacUI.Density.gap) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                    .buttonStyle(.macSecondary)
+                    .keyboardShortcut(.cancelAction)
+
+                    Button("Use new Token") {
+                        guard let detectedToken else { return }
+                        onUseToken(detectedToken)
+                        dismiss()
+                    }
+                    .buttonStyle(.macPrimary)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(!canUseNewToken)
                 }
-                .keyboardShortcut(.cancelAction)
-
-                Button("Use new Token") {
-                    guard let detectedToken else { return }
-                    onUseToken(detectedToken)
-                    dismiss()
-                }
-                .keyboardShortcut(.defaultAction)
-                .disabled(!canUseNewToken)
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 14)
         }
+        .font(MacUI.bodyFont())
+        .foregroundStyle(MacUI.Colors.primaryText)
         .frame(width: 520)
         .fixedSize(horizontal: false, vertical: true)
+        .background(MacUI.Colors.sheetFallback.opacity(0.001))
         .task {
             await detect()
         }
@@ -509,56 +531,66 @@ private struct DetectTokenSheet: View {
     }
 
     private var statusSection: some View {
-        GroupBox("Status") {
+        opaquePanel(title: "Status") {
             VStack(alignment: .leading, spacing: 6) {
                 switch phase {
                 case .detecting:
                     Label("Reading Cursor’s local session data…", systemImage: "ellipsis.circle")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MacUI.Colors.secondaryText)
                 case .testing:
                     Label("Testing detected token against Cursor’s API…", systemImage: "network")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MacUI.Colors.secondaryText)
                 case .ready:
                     Label("Token detected and verified.", systemImage: "checkmark.circle.fill")
                         .foregroundStyle(.green)
                 case .failed(let message):
                     Label(message, systemImage: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.red)
+                        .foregroundStyle(MacUI.Colors.destructive)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, 4)
         }
     }
 
     private func tokenValueSection(_ token: String) -> some View {
-        GroupBox("Detected value") {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .top) {
-                    Group {
-                        if showDetectedToken {
-                            Text(token)
-                                .textSelection(.enabled)
-                        } else {
-                            Text(maskedToken(token))
-                                .textSelection(.enabled)
-                        }
+        opaquePanel(title: "Detected value") {
+            HStack(alignment: .top, spacing: MacUI.Density.gap) {
+                Group {
+                    if showDetectedToken {
+                        Text(token)
+                            .textSelection(.enabled)
+                    } else {
+                        Text(maskedToken(token))
+                            .textSelection(.enabled)
                     }
-                    .font(.system(.body, design: .monospaced))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                    Button {
-                        showDetectedToken.toggle()
-                    } label: {
-                        Image(systemName: showDetectedToken ? "eye.slash" : "eye")
-                    }
-                    .help(showDetectedToken ? "Hide token" : "Show token")
                 }
+                .font(.system(size: MacUI.Density.fontSize, design: .monospaced))
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                Button {
+                    showDetectedToken.toggle()
+                } label: {
+                    Image(systemName: showDetectedToken ? "eye.slash" : "eye")
+                        .font(.system(size: MacUI.Density.iconSize))
+                        .frame(width: MacUI.Density.controlHeight, height: MacUI.Density.controlHeight)
+                }
+                .buttonStyle(.macSecondary)
+                .help(showDetectedToken ? "Hide token" : "Show token")
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, 4)
         }
+    }
+
+    private func opaquePanel<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(MacUI.calloutFont().weight(.semibold))
+                .foregroundStyle(MacUI.Colors.secondaryText)
+            content()
+        }
+        .padding(MacUI.Density.gap)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .macOpaqueCard()
     }
 
     private func comparisonTable(_ token: String) -> some View {
@@ -569,21 +601,21 @@ private struct DetectTokenSheet: View {
         let alreadyInField = !TokenStore.normalizeToken(draftToken).isEmpty
             && TokenStore.normalizeToken(token) == TokenStore.normalizeToken(draftToken)
 
-        return GroupBox("Compared to saved") {
+        return opaquePanel(title: "Compared to saved") {
             VStack(alignment: .leading, spacing: 0) {
                 comparisonHeader
 
-                Divider().padding(.vertical, 8)
+                sheetDivider
 
                 comparisonRow(label: "Token") {
                     VStack(alignment: .leading, spacing: 4) {
                         comparisonBadge(
                             title: hasSaved ? (isSameToken ? "Same" : "Different") : "New",
-                            tint: hasSaved ? (isSameToken ? .secondary : .orange) : .blue
+                            tint: hasSaved ? (isSameToken ? MacUI.Colors.secondaryText : .orange) : MacUI.Colors.accent
                         )
                         Text(maskedToken(token))
-                            .font(.system(.caption, design: .monospaced))
-                            .foregroundStyle(.secondary)
+                            .font(.system(size: MacUI.Density.fontSize - 2, design: .monospaced))
+                            .foregroundStyle(MacUI.Colors.secondaryText)
                             .textSelection(.enabled)
                     }
                 } saved: {
@@ -591,20 +623,20 @@ private struct DetectTokenSheet: View {
                         if hasSaved {
                             comparisonBadge(
                                 title: isSameToken ? "Same" : "Different",
-                                tint: isSameToken ? .secondary : .orange
+                                tint: isSameToken ? MacUI.Colors.secondaryText : .orange
                             )
                             Text(maskedToken(savedToken))
-                                .font(.system(.caption, design: .monospaced))
-                                .foregroundStyle(.secondary)
+                                .font(.system(size: MacUI.Density.fontSize - 2, design: .monospaced))
+                                .foregroundStyle(MacUI.Colors.secondaryText)
                                 .textSelection(.enabled)
                         } else {
                             Text("None saved")
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(MacUI.Colors.secondaryText)
                         }
                     }
                 }
 
-                Divider().padding(.vertical, 8)
+                sheetDivider
 
                 comparisonRow(label: "Expires") {
                     expirationCell(for: token)
@@ -613,11 +645,11 @@ private struct DetectTokenSheet: View {
                         expirationCell(for: savedToken)
                     } else {
                         Text("—")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(MacUI.Colors.secondaryText)
                     }
                 }
 
-                Divider().padding(.vertical, 8)
+                sheetDivider
 
                 Text(comparisonVerdict(
                     hasSaved: hasSaved,
@@ -626,22 +658,28 @@ private struct DetectTokenSheet: View {
                     saved: savedToken,
                     alreadyInField: alreadyInField
                 ))
-                .font(.callout)
-                .foregroundStyle(.secondary)
+                .font(MacUI.calloutFont())
+                .foregroundStyle(MacUI.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(.vertical, 4)
         }
     }
 
+    private var sheetDivider: some View {
+        Rectangle()
+            .fill(MacUI.Colors.divider)
+            .frame(height: 1)
+            .padding(.vertical, 8)
+    }
+
     private var comparisonHeader: some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .top, spacing: MacUI.Density.gap) {
             Color.clear.frame(width: 64)
             Text("Detected")
-                .font(.subheadline.weight(.semibold))
+                .font(MacUI.calloutFont().weight(.semibold))
                 .frame(maxWidth: .infinity, alignment: .leading)
             Text("Saved")
-                .font(.subheadline.weight(.semibold))
+                .font(MacUI.calloutFont().weight(.semibold))
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
@@ -651,10 +689,10 @@ private struct DetectTokenSheet: View {
         @ViewBuilder detected: () -> Detected,
         @ViewBuilder saved: () -> Saved
     ) -> some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .top, spacing: MacUI.Density.gap) {
             Text(label)
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(.secondary)
+                .font(MacUI.calloutFont().weight(.medium))
+                .foregroundStyle(MacUI.Colors.secondaryText)
                 .frame(width: 64, alignment: .leading)
             detected()
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -665,7 +703,7 @@ private struct DetectTokenSheet: View {
 
     private func comparisonBadge(title: String, tint: Color) -> some View {
         Text(title)
-            .font(.caption.weight(.semibold))
+            .font(MacUI.captionFont().weight(.semibold))
             .foregroundStyle(tint)
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
@@ -679,8 +717,8 @@ private struct DetectTokenSheet: View {
                 .foregroundStyle(expirationColor(for: token))
             if let secondary = summary.secondary {
                 Text(secondary)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(MacUI.captionFont())
+                    .foregroundStyle(MacUI.Colors.secondaryText)
             }
         }
     }
@@ -758,17 +796,17 @@ private struct DetectTokenSheet: View {
 
     private func expirationColor(for token: String) -> Color {
         if token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return .secondary
+            return MacUI.Colors.secondaryText
         }
         if TokenStore.isExpired(token) {
-            return .red
+            return MacUI.Colors.destructive
         }
         if let exp = TokenStore.expirationDate(ofToken: token),
            let days = Calendar.current.dateComponents([.day], from: Date(), to: exp).day,
            days <= 7 {
             return .orange
         }
-        return .primary
+        return MacUI.Colors.primaryText
     }
 
     private func maskedToken(_ token: String) -> String {
@@ -807,64 +845,85 @@ private struct TokenHelpSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Label("Update Cursor Session Token", systemImage: "key.fill")
-                    .font(.title2.weight(.semibold))
-                Spacer()
-                Button("Done") { dismiss() }
-                    .keyboardShortcut(.defaultAction)
+            HStack(spacing: 8) {
+                Image(systemName: "key.fill")
+                    .font(.system(size: MacUI.Density.iconSize))
+                    .foregroundStyle(MacUI.Colors.secondaryText)
+                Text("Update Cursor Session Token")
+                    .font(MacUI.headlineFont(scale: 1.15))
+                    .foregroundStyle(MacUI.Colors.primaryText)
+                Spacer(minLength: 0)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 20)
-            .padding(.bottom, 12)
+            .frame(height: MacUI.Density.titleBarHeight)
+            .padding(.horizontal, MacUI.Density.dialogPad)
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: MacUI.Density.gap) {
                     Text("This app authenticates with the WorkosCursorSessionToken cookie from cursor.com (same value Cursor stores locally).")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MacUI.Colors.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    GroupBox("Option A — Copy from browser") {
-                        VStack(alignment: .leading, spacing: 8) {
-                            step(1, "Open https://cursor.com in your browser and sign in.")
-                            step(2, "Open Developer Tools (Safari: Develop → Show Web Inspector; Chrome: View → Developer → Developer Tools).")
-                            step(3, "Go to Storage / Application → Cookies → https://cursor.com.")
-                            step(4, "Find the cookie named WorkosCursorSessionToken and copy its value.")
-                            step(5, "Paste it into Settings → Account, then click Save Token.")
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.vertical, 4)
+                    helpPanel(title: "Option A — Copy from browser") {
+                        step(1, "Open https://cursor.com in your browser and sign in.")
+                        step(2, "Open Developer Tools (Safari: Develop → Show Web Inspector; Chrome: View → Developer → Developer Tools).")
+                        step(3, "Go to Storage / Application → Cookies → https://cursor.com.")
+                        step(4, "Find the cookie named WorkosCursorSessionToken and copy its value.")
+                        step(5, "Paste it into Settings → Account, then click Save Token.")
                     }
 
-                    GroupBox("Option B — Detect from Cursor app") {
-                        VStack(alignment: .leading, spacing: 8) {
-                            step(1, "Make sure the Cursor desktop app is installed and you are signed in.")
-                            step(2, "In Settings → Account, click Detect from Cursor.")
-                            step(3, "Review the detected value and expiration, then click Use new Token to fill the field.")
-                            step(4, "Click Save Token, then Refresh from Details.")
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.vertical, 4)
+                    helpPanel(title: "Option B — Detect from Cursor app") {
+                        step(1, "Make sure the Cursor desktop app is installed and you are signed in.")
+                        step(2, "In Settings → Account, click Detect from Cursor.")
+                        step(3, "Review the detected value and expiration, then click Use new Token to fill the field.")
+                        step(4, "Click Save Token, then Refresh from Details.")
                     }
 
                     Text("When the token expires, usage requests return an auth error. Update it with Option A or B, then Refresh from Details.")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
+                        .font(MacUI.calloutFont())
+                        .foregroundStyle(MacUI.Colors.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(.horizontal, 20)
-                .padding(.bottom, 20)
+                .padding(.horizontal, MacUI.Density.dialogPad)
+                .padding(.bottom, MacUI.Density.dialogPad)
+            }
+
+            Rectangle()
+                .fill(MacUI.Colors.divider)
+                .frame(height: 1)
+
+            MacDialogFooter {
+                EmptyView()
+            } trailing: {
+                Button("Done") { dismiss() }
+                    .buttonStyle(.macPrimary)
+                    .keyboardShortcut(.defaultAction)
             }
         }
+        .font(MacUI.bodyFont())
+        .foregroundStyle(MacUI.Colors.primaryText)
         .frame(minWidth: 560, idealWidth: 600, maxWidth: 720,
                minHeight: 520, idealHeight: 560, maxHeight: 800)
+    }
+
+    private func helpPanel<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(MacUI.calloutFont().weight(.semibold))
+                .foregroundStyle(MacUI.Colors.secondaryText)
+            VStack(alignment: .leading, spacing: 8) {
+                content()
+            }
+        }
+        .padding(MacUI.Density.gap)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .macOpaqueCard()
     }
 
     private func step(_ number: Int, _ text: String) -> some View {
         HStack(alignment: .top, spacing: 10) {
             Text("\(number).")
                 .fontWeight(.semibold)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(MacUI.Colors.secondaryText)
                 .frame(width: 20, alignment: .trailing)
             Text(text)
                 .fixedSize(horizontal: false, vertical: true)

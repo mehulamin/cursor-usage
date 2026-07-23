@@ -174,13 +174,17 @@ final class StatusItemController: NSObject, ObservableObject {
         popover.behavior = .transient
         popover.animates = true
         popover.delegate = self
-        popover.contentSize = NSSize(width: 360, height: 440)
+        // Content sizes itself; glass chrome lives in DetailsPopoverView.
+        popover.contentSize = NSSize(width: 340, height: 1)
 
         let root = DetailsPopoverView()
             .environmentObject(viewModel)
             .environmentObject(settings)
 
         let hosting = NSHostingController(rootView: root)
+        hosting.sizingOptions = [.intrinsicContentSize]
+        hosting.view.wantsLayer = true
+        hosting.view.layer?.backgroundColor = NSColor.clear.cgColor
         popover.contentViewController = hosting
         self.popover = popover
 
@@ -189,6 +193,8 @@ final class StatusItemController: NSObject, ObservableObject {
         // Become key on the next turn so the popover window exists.
         DispatchQueue.main.async {
             if let window = hosting.view.window {
+                window.isOpaque = false
+                window.backgroundColor = .clear
                 window.makeKeyAndOrderFront(nil)
                 window.makeFirstResponder(hosting.view)
             }

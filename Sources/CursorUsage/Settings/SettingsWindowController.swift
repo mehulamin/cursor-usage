@@ -39,6 +39,8 @@ enum SettingsWindowController {
         window.isReleasedWhenClosed = false
         window.center()
         window.level = .floating
+        window.titlebarAppearsTransparent = false
+        window.backgroundColor = NSColor(MacUI.Colors.windowBackground)
 
         Self.window = window
         NSApp.activate(ignoringOtherApps: true)

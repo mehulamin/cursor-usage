@@ -7,31 +7,36 @@ struct DetailsPopoverView: View {
     private var fontScale: CGFloat { settings.fontSize.scale }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16 * fontScale) {
+        VStack(alignment: .leading, spacing: MacUI.Density.gap * fontScale) {
             header
             content
             footer
         }
-        .padding(16)
+        .padding(MacUI.Density.dialogPad)
         .frame(width: 340)
-        .background(.regularMaterial)
-        .font(.system(size: 13 * fontScale))
+        .font(MacUI.bodyFont(scale: fontScale))
+        .foregroundStyle(MacUI.Colors.primaryText)
+        // System NSPopover supplies the single Liquid Glass chrome layer.
+        .background(Color.clear)
     }
 
     @ViewBuilder
     private var header: some View {
-        HStack(alignment: .firstTextBaseline) {
+        HStack(alignment: .center, spacing: 8) {
             Image(systemName: "chart.bar.fill")
-                .foregroundStyle(.secondary)
+                .font(.system(size: MacUI.Density.iconSize * fontScale))
+                .foregroundStyle(MacUI.Colors.secondaryText)
                 .accessibilityHidden(true)
             Text("Cursor Usage")
-                .font(.system(size: 15 * fontScale, weight: .semibold))
-            Spacer()
+                .font(MacUI.headlineFont(scale: fontScale * 1.08))
+            Spacer(minLength: 0)
             if case .loading = viewModel.state {
                 ProgressView()
                     .controlSize(.small)
+                    .frame(width: MacUI.Density.spinnerSize, height: MacUI.Density.spinnerSize)
             }
         }
+        .frame(minHeight: MacUI.Density.controlHeight)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Cursor Usage")
     }
@@ -40,39 +45,48 @@ struct DetailsPopoverView: View {
     private var content: some View {
         switch viewModel.state {
         case .idle, .loading:
-            VStack(spacing: 12) {
+            VStack(spacing: MacUI.Density.gap) {
                 ProgressView()
+                    .controlSize(.regular)
                 Text("Loading usage…")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MacUI.Colors.secondaryText)
             }
             .frame(maxWidth: .infinity, minHeight: 180)
 
         case .error(let message):
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: MacUI.Density.gap) {
                 Label(message, systemImage: "exclamationmark.triangle.fill")
                     .foregroundStyle(.orange)
                     .fixedSize(horizontal: false, vertical: true)
                 if message.contains("token") || message.contains("paste") {
                     Text("Open Settings to paste your WorkosCursorSessionToken, or detect it from the Cursor app.")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MacUI.Colors.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
                     Button("Open Settings…") {
                         viewModel.openSettings()
                     }
+                    .buttonStyle(.macPrimary)
                     .keyboardShortcut(",", modifiers: .command)
                 } else {
                     Button("Try Again") {
                         Task { await viewModel.refresh() }
                     }
+                    .buttonStyle(.macPrimary)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, 8)
+            .padding(MacUI.Density.gap)
+            .macOpaqueCard()
 
         case .loaded(let snap):
-            cycleHeader(snap)
-            metricRows(snap)
-            spendSection(snap)
+            VStack(alignment: .leading, spacing: MacUI.Density.gap) {
+                cycleHeader(snap)
+                metricRows(snap)
+                spendSection(snap)
+            }
+            .padding(MacUI.Density.gap)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .macOpaqueCard()
         }
     }
 
@@ -80,23 +94,24 @@ struct DetailsPopoverView: View {
         VStack(alignment: .leading, spacing: 4) {
             Label {
                 Text("Resets \(snap.resetDateLabel) · \(snap.resetLabel)")
-                    .font(.system(size: 12 * fontScale, weight: .medium))
+                    .font(MacUI.calloutFont(scale: fontScale).weight(.medium))
             } icon: {
                 Image(systemName: "calendar")
+                    .font(.system(size: MacUI.Density.iconSize * 0.85 * fontScale))
             }
-            .foregroundStyle(.secondary)
+            .foregroundStyle(MacUI.Colors.secondaryText)
 
             if let day = snap.dayIndex {
                 Text("Day \(day) of \(snap.totalDays)")
-                    .font(.system(size: 11 * fontScale))
-                    .foregroundStyle(.tertiary)
+                    .font(MacUI.captionFont(scale: fontScale))
+                    .foregroundStyle(MacUI.Colors.tertiaryText)
             }
         }
         .accessibilityElement(children: .combine)
     }
 
     private func metricRows(_ snap: UsageSnapshot) -> some View {
-        VStack(spacing: 12) {
+        VStack(spacing: MacUI.Density.gap) {
             MetricRow(
                 title: "Auto + Composer",
                 percent: snap.autoRounded,
@@ -121,10 +136,10 @@ struct DetailsPopoverView: View {
     private func spendSection(_ snap: UsageSnapshot) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Spend this period")
-                .font(.system(size: 12 * fontScale, weight: .semibold))
+                .font(MacUI.calloutFont(scale: fontScale).weight(.semibold))
             Text("Included $\(snap.includedDollars) · Bonus $\(snap.bonusDollars) · Total $\(snap.totalDollars)")
-                .font(.system(size: 12 * fontScale))
-                .foregroundStyle(.secondary)
+                .font(MacUI.calloutFont(scale: fontScale))
+                .foregroundStyle(MacUI.Colors.secondaryText)
                 .textSelection(.enabled)
         }
         .accessibilityElement(children: .combine)
@@ -133,25 +148,28 @@ struct DetailsPopoverView: View {
 
     private var footer: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Divider()
-            HStack(alignment: .center, spacing: 12) {
+            Rectangle()
+                .fill(MacUI.Colors.divider)
+                .frame(height: 1)
+            HStack(alignment: .center, spacing: MacUI.Density.gap) {
                 Button {
                     viewModel.openCursorDashboard()
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "arrow.up.right")
+                            .font(.system(size: MacUI.Density.iconSize * 0.85 * fontScale))
                         Text("Open online")
                     }
                 }
-                .buttonStyle(.link)
+                .buttonStyle(.macSecondary)
 
                 Spacer(minLength: 8)
 
-                HStack(spacing: 4) {
+                HStack(spacing: 8) {
                     if case .loaded(let snap) = viewModel.state {
                         Text(relativeTime(snap.fetchedAt))
-                            .font(.system(size: 12 * fontScale))
-                            .foregroundStyle(.tertiary)
+                            .font(MacUI.calloutFont(scale: fontScale))
+                            .foregroundStyle(MacUI.Colors.tertiaryText)
                             .accessibilityLabel("Last refreshed \(relativeTime(snap.fetchedAt))")
                     }
 
@@ -159,8 +177,10 @@ struct DetailsPopoverView: View {
                         Task { await viewModel.refresh() }
                     } label: {
                         Image(systemName: "arrow.clockwise")
+                            .font(.system(size: MacUI.Density.iconSize * fontScale))
+                            .frame(width: MacUI.Density.controlHeight, height: MacUI.Density.controlHeight)
                     }
-                    .buttonStyle(.link)
+                    .buttonStyle(.macSecondary)
                     .disabled(isLoading)
                     .help("Refresh usage")
                     .accessibilityLabel("Refresh")
@@ -168,7 +188,7 @@ struct DetailsPopoverView: View {
             }
 
             Text(tokenExpirationText)
-                .font(.system(size: 11 * fontScale))
+                .font(MacUI.captionFont(scale: fontScale))
                 .foregroundStyle(tokenExpirationColor)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityLabel(tokenExpirationText)
@@ -188,23 +208,23 @@ struct DetailsPopoverView: View {
     private var tokenExpirationColor: Color {
         let token = settings.sessionToken
         if token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return .secondary
+            return MacUI.Colors.secondaryText
         }
         if TokenStore.isExpired(token) {
-            return .red
+            return MacUI.Colors.destructive
         }
         guard let exp = TokenStore.expirationDate(ofToken: token),
               let days = Calendar.current.dateComponents([.day], from: Date(), to: exp).day
         else {
-            return .secondary
+            return MacUI.Colors.secondaryText
         }
         if days < 3 {
-            return .red
+            return MacUI.Colors.destructive
         }
         if days < 7 {
             return .yellow
         }
-        return .secondary
+        return MacUI.Colors.secondaryText
     }
 
     private func relativeTime(_ date: Date) -> String {
@@ -222,28 +242,28 @@ private struct MetricRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack {
+            HStack(spacing: 8) {
                 Circle()
                     .fill(pace.severity.color)
                     .frame(width: 8, height: 8)
                     .accessibilityHidden(true)
                 Text(title)
-                    .font(.system(size: 12 * fontScale, weight: .medium))
-                Spacer()
+                    .font(MacUI.calloutFont(scale: fontScale).weight(.medium))
+                Spacer(minLength: 0)
                 Text("\(percent)%")
-                    .font(.system(size: 12 * fontScale, weight: .semibold).monospacedDigit())
+                    .font(MacUI.calloutFont(scale: fontScale).weight(.semibold).monospacedDigit())
                 if let projected = pace.projected, pace.severity != .none {
                     Text(percent >= 100 ? "max" : "~\(projected)%")
-                        .font(.system(size: 11 * fontScale, weight: .semibold).monospacedDigit())
+                        .font(MacUI.captionFont(scale: fontScale).weight(.semibold).monospacedDigit())
                         .foregroundStyle(pace.severity.chipForeground)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
                         .background(pace.severity.chipBackground, in: Capsule())
                 }
             }
-            ProgressView(value: min(Double(percent), 100), total: 100)
-                .tint(pace.severity.color)
-                .accessibilityHidden(true)
+            .frame(minHeight: MacUI.Density.controlHeight * 0.75)
+
+            MacProgressBar(value: Double(percent), tint: pace.severity.color)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityText)
