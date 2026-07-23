@@ -166,10 +166,14 @@ struct SettingsView: View {
                     settings.menuBarTemplate = MenuBarTemplate.defaultTemplate
                 }
                 .disabled(settings.menuBarTemplate == MenuBarTemplate.defaultTemplate)
+
+                Text(menuBarTemplateFooter)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             } header: {
                 Text("Menu Bar")
-            } footer: {
-                Text(menuBarTemplateFooter)
             }
         }
         .formStyle(.grouped)
