@@ -134,24 +134,44 @@ struct DetailsPopoverView: View {
     private var footer: some View {
         VStack(alignment: .leading, spacing: 8) {
             Divider()
-            HStack {
+            HStack(alignment: .center, spacing: 12) {
                 Button {
                     viewModel.openCursorDashboard()
                 } label: {
-                    Label("Open Cursor Settings", systemImage: "arrow.up.right")
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.up.right")
+                        Text("Open online")
+                    }
                 }
                 .buttonStyle(.link)
 
-                Spacer()
+                Button {
+                    Task { await viewModel.refresh() }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.clockwise")
+                        Text("Refresh")
+                    }
+                }
+                .buttonStyle(.link)
+                .disabled(isLoading)
+                .help("Refresh usage")
+
+                Spacer(minLength: 8)
 
                 if case .loaded(let snap) = viewModel.state {
                     Text(relativeTime(snap.fetchedAt))
-                        .font(.system(size: 11 * fontScale))
+                        .font(.system(size: 12 * fontScale))
                         .foregroundStyle(.tertiary)
                         .accessibilityLabel("Last refreshed \(relativeTime(snap.fetchedAt))")
                 }
             }
         }
+    }
+
+    private var isLoading: Bool {
+        if case .loading = viewModel.state { return true }
+        return false
     }
 
     private func relativeTime(_ date: Date) -> String {

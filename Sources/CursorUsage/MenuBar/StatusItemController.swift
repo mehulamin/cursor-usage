@@ -39,18 +39,6 @@ final class StatusItemController: NSObject, ObservableObject {
         menu.autoenablesItems = false
         menu.delegate = self
 
-        let details = NSMenuItem(title: "Details", action: #selector(showDetails), keyEquivalent: "")
-        details.target = self
-        details.isEnabled = true
-        menu.addItem(details)
-
-        let refresh = NSMenuItem(title: "Refresh", action: #selector(refreshUsage), keyEquivalent: "r")
-        refresh.target = self
-        refresh.isEnabled = true
-        menu.addItem(refresh)
-
-        menu.addItem(.separator())
-
         let settingsItem = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
         settingsItem.target = self
         settingsItem.isEnabled = true
@@ -61,6 +49,7 @@ final class StatusItemController: NSObject, ObservableObject {
         let quit = NSMenuItem(title: "Quit Cursor Usage", action: #selector(quitApp), keyEquivalent: "q")
         quit.target = self
         quit.isEnabled = true
+        quit.image = NSImage(systemSymbolName: "power", accessibilityDescription: "Quit")
         menu.addItem(quit)
 
         statusMenu = menu
@@ -208,10 +197,6 @@ final class StatusItemController: NSObject, ObservableObject {
                 self?.installOutsideClickMonitors()
             }
         }
-    }
-
-    @objc func refreshUsage() {
-        Task { await viewModel.refresh() }
     }
 
     @objc func openSettings() {

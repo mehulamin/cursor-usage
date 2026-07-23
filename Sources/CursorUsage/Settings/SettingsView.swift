@@ -36,6 +36,8 @@ struct SettingsView: View {
     @State private var tokenDraft: String = ""
     @State private var showToken = false
     @State private var detectMessage: String?
+    @State private var isDetecting = false
+    @State private var confirmingDetect = false
     @State private var includeTokenInExport = true
     @State private var transferMessage: String?
     @State private var transferIsError = false
@@ -176,26 +178,30 @@ struct SettingsView: View {
                         saveToken()
                     }
                     .keyboardShortcut(.defaultAction)
+                    .disabled(!canSaveToken)
 
                     Button("Detect from Cursor") {
-                        detectMessage = "Detecting…"
-                        Task {
-                            if let token = await TokenStore.autoDetectToken() {
-                                tokenDraft = token
-                                settings.sessionToken = token
-                                detectMessage = "Token detected from Cursor."
-                                await viewModel.refresh()
-                            } else {
-                                detectMessage = "Could not find a token in Cursor’s local database."
-                            }
-                        }
+                        confirmingDetect = true
                     }
+                    .disabled(isDetecting)
 
                     Button("Clear", role: .destructive) {
                         tokenDraft = ""
                         settings.sessionToken = ""
                         detectMessage = nil
                     }
+                }
+                .confirmationDialog(
+                    "Detect token from Cursor?",
+                    isPresented: $confirmingDetect,
+                    titleVisibility: .visible
+                ) {
+                    Button("Detect and Test") {
+                        detectAndTestToken()
+                    }
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("Cursor Usage will read a session token from Cursor’s local data, test it against Cursor’s API, and only then fill the field so you can save it.")
                 }
 
                 if let detectMessage {
@@ -252,13 +258,17 @@ struct SettingsView: View {
             }
 
             Section {
-                Link("Open Cursor Settings", destination: URL(string: "https://cursor.com/settings")!)
+                Link("Open usage online", destination: URL(string: "https://cursor.com/settings")!)
             } footer: {
                 Text("Cursor Usage is a local menu-bar companion for Cursor Pro usage metrics.")
             }
         }
         .formStyle(.grouped)
         .padding()
+    }
+
+    private var canSaveToken: Bool {
+        TokenStore.normalizeToken(tokenDraft) != TokenStore.normalizeToken(settings.sessionToken)
     }
 
     private var expirationColor: Color {
@@ -278,11 +288,34 @@ struct SettingsView: View {
     }
 
     private func saveToken() {
+        guard canSaveToken else { return }
         let normalized = TokenStore.normalizeToken(tokenDraft)
         tokenDraft = normalized
         settings.sessionToken = normalized
         detectMessage = normalized.isEmpty ? "Token cleared." : "Token saved."
         Task { await viewModel.refresh() }
+    }
+
+    private func detectAndTestToken() {
+        isDetecting = true
+        detectMessage = "Detecting…"
+        Task {
+            defer { isDetecting = false }
+
+            guard let token = await TokenStore.autoDetectToken() else {
+                detectMessage = "Could not find a token in Cursor’s local database."
+                return
+            }
+
+            detectMessage = "Testing detected token…"
+            do {
+                _ = try await UsageClient().fetchUsage(token: token)
+                tokenDraft = token
+                detectMessage = "Token detected and verified. Click Save Token to keep it."
+            } catch {
+                detectMessage = "Detected a token, but it failed verification: \(error.localizedDescription)"
+            }
+        }
     }
 
     private func exportSettings() {
@@ -373,14 +406,14 @@ private struct TokenHelpSheet: View {
                     GroupBox("Option B — Detect from Cursor app") {
                         VStack(alignment: .leading, spacing: 8) {
                             step(1, "Make sure the Cursor desktop app is installed and you are signed in.")
-                            step(2, "In Settings → Account, click Detect from Cursor.")
-                            step(3, "If detection succeeds, click Save Token if needed, then Refresh from the menu bar.")
+                            step(2, "In Settings → Account, click Detect from Cursor and confirm.")
+                            step(3, "If the token is found and verifies, click Save Token, then Refresh from Details.")
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.vertical, 4)
                     }
 
-                    Text("When the token expires, usage requests return an auth error. Update it with Option A or B, then Refresh.")
+                    Text("When the token expires, usage requests return an auth error. Update it with Option A or B, then Refresh from Details.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

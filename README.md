@@ -22,7 +22,6 @@ Same workflow as [ma-quick-launch](../ma-quick-launch):
 ## Menu
 
 - **Details** — popover with progress, spend, projection, last refresh
-- **Refresh** — fetch now (⌘R when menu is open)
 - **Settings…** — font size, menu-bar toggles, token, interval, version
 - **Quit**
 
