@@ -44,6 +44,7 @@ struct SettingsFile: Codable, Equatable {
     var fontSize: String
     var refreshIntervalMinutes: Int
     var sessionToken: String?
+    var menuBarTemplate: String?
     var showAuto: Bool?
     var showAPI: Bool?
     var showTotal: Bool?
@@ -78,6 +79,9 @@ final class AppSettings: ObservableObject {
 
     @Published var fontSize: FontSizeOption {
         didSet { defaults.set(fontSize.rawValue, forKey: Keys.fontSize) }
+    }
+    @Published var menuBarTemplate: String {
+        didSet { defaults.set(menuBarTemplate, forKey: Keys.menuBarTemplate) }
     }
     @Published var showAuto: Bool {
         didSet { defaults.set(showAuto, forKey: Keys.showAuto) }
@@ -118,6 +122,7 @@ final class AppSettings: ObservableObject {
 
     private enum Keys {
         static let fontSize = "fontSize"
+        static let menuBarTemplate = "menuBarTemplate"
         static let showAuto = "showAuto"
         static let showAPI = "showAPI"
         static let showTotal = "showTotal"
@@ -135,6 +140,8 @@ final class AppSettings: ObservableObject {
     private init() {
         let raw = defaults.string(forKey: Keys.fontSize) ?? FontSizeOption.medium.rawValue
         fontSize = FontSizeOption(rawValue: raw) ?? .medium
+        let template = defaults.string(forKey: Keys.menuBarTemplate) ?? MenuBarTemplate.defaultTemplate
+        menuBarTemplate = template.isEmpty ? MenuBarTemplate.defaultTemplate : template
         showAuto = defaults.object(forKey: Keys.showAuto) as? Bool ?? true
         showAPI = defaults.object(forKey: Keys.showAPI) as? Bool ?? true
         showTotal = defaults.object(forKey: Keys.showTotal) as? Bool ?? true
@@ -155,6 +162,7 @@ final class AppSettings: ObservableObject {
             fontSize: fontSize.rawValue,
             refreshIntervalMinutes: refreshIntervalMinutes,
             sessionToken: includeSessionToken ? sessionToken : nil,
+            menuBarTemplate: menuBarTemplate,
             showAuto: showAuto,
             showAPI: showAPI,
             showTotal: showTotal,
@@ -187,6 +195,11 @@ final class AppSettings: ObservableObject {
         refreshIntervalMinutes = max(5, min(60, file.refreshIntervalMinutes))
         if let token = file.sessionToken {
             sessionToken = TokenStore.normalizeToken(token)
+        }
+        if let value = file.menuBarTemplate {
+            menuBarTemplate = value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? MenuBarTemplate.defaultTemplate
+                : value
         }
         if let value = file.showAuto { showAuto = value }
         if let value = file.showAPI { showAPI = value }

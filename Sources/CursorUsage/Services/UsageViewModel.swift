@@ -195,14 +195,11 @@ final class UsageViewModel: ObservableObject {
             }
             return "error"
         case .loaded(let snap):
-            // Compact menu bar: "80% · 11d"
-            let daysBit: String
-            if let days = snap.daysLeft {
-                daysBit = "\(days)d"
-            } else {
-                daysBit = "?d"
-            }
-            return "\(snap.totalRounded)% · \(daysBit)"
+            let template = settings.menuBarTemplate.trimmingCharacters(in: .whitespacesAndNewlines)
+            return MenuBarTemplate.render(
+                template.isEmpty ? MenuBarTemplate.defaultTemplate : template,
+                snapshot: snap
+            )
         }
     }
 

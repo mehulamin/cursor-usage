@@ -102,11 +102,26 @@ struct SettingsView: View {
             }
 
             Section {
-                LabeledContent("Format", value: "80% · 11d")
+                TextField("Format", text: $settings.menuBarTemplate)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(.body, design: .monospaced))
+                    .accessibilityLabel("Menu bar format")
+
+                LabeledContent("Preview") {
+                    Text(MenuBarTemplate.preview(settings.menuBarTemplate, snapshot: viewModel.snapshot))
+                        .font(.system(.body, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
+
+                Button("Reset to Default") {
+                    settings.menuBarTemplate = MenuBarTemplate.defaultTemplate
+                }
+                .disabled(settings.menuBarTemplate == MenuBarTemplate.defaultTemplate)
             } header: {
                 Text("Menu Bar")
             } footer: {
-                Text("Shows total usage percent and days left in the billing cycle. Open Details for the full breakdown.")
+                Text(menuBarTemplateFooter)
             }
 
             Section {
@@ -280,6 +295,11 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .padding()
+    }
+
+    private var menuBarTemplateFooter: String {
+        let tags = MenuBarTemplate.tags.map(\.token).joined(separator: "  ")
+        return "Mix any text with reserved tags. Default: \(MenuBarTemplate.defaultTemplate)\n\(tags)"
     }
 
     private var canSaveToken: Bool {
