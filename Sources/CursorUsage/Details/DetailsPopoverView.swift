@@ -148,14 +148,12 @@ struct DetailsPopoverView: View {
                 Button {
                     Task { await viewModel.refresh() }
                 } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "arrow.clockwise")
-                        Text("Refresh")
-                    }
+                    Image(systemName: "arrow.clockwise")
                 }
                 .buttonStyle(.link)
                 .disabled(isLoading)
                 .help("Refresh usage")
+                .accessibilityLabel("Refresh")
 
                 Spacer(minLength: 8)
 
