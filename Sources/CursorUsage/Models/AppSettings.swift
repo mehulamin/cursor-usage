@@ -50,6 +50,10 @@ struct SettingsFile: Codable, Equatable {
     var showDaysLeft: Bool?
     var showEstimate: Bool?
     var showSpend: Bool?
+    var refreshOnLaunch: Bool?
+    var refreshOnWake: Bool?
+    var refreshOnScreenUnlock: Bool?
+    var refreshOnSessionActive: Bool?
 }
 
 enum SettingsTransferError: LocalizedError {
@@ -96,6 +100,18 @@ final class AppSettings: ObservableObject {
     @Published var refreshIntervalMinutes: Int {
         didSet { defaults.set(refreshIntervalMinutes, forKey: Keys.refreshIntervalMinutes) }
     }
+    @Published var refreshOnLaunch: Bool {
+        didSet { defaults.set(refreshOnLaunch, forKey: Keys.refreshOnLaunch) }
+    }
+    @Published var refreshOnWake: Bool {
+        didSet { defaults.set(refreshOnWake, forKey: Keys.refreshOnWake) }
+    }
+    @Published var refreshOnScreenUnlock: Bool {
+        didSet { defaults.set(refreshOnScreenUnlock, forKey: Keys.refreshOnScreenUnlock) }
+    }
+    @Published var refreshOnSessionActive: Bool {
+        didSet { defaults.set(refreshOnSessionActive, forKey: Keys.refreshOnSessionActive) }
+    }
     @Published var sessionToken: String {
         didSet { defaults.set(sessionToken, forKey: Keys.sessionToken) }
     }
@@ -109,6 +125,10 @@ final class AppSettings: ObservableObject {
         static let showEstimate = "showEstimate"
         static let showSpend = "showSpend"
         static let refreshIntervalMinutes = "refreshIntervalMinutes"
+        static let refreshOnLaunch = "refreshOnLaunch"
+        static let refreshOnWake = "refreshOnWake"
+        static let refreshOnScreenUnlock = "refreshOnScreenUnlock"
+        static let refreshOnSessionActive = "refreshOnSessionActive"
         static let sessionToken = "sessionToken"
     }
 
@@ -122,6 +142,10 @@ final class AppSettings: ObservableObject {
         showEstimate = defaults.object(forKey: Keys.showEstimate) as? Bool ?? false
         showSpend = defaults.object(forKey: Keys.showSpend) as? Bool ?? false
         refreshIntervalMinutes = defaults.object(forKey: Keys.refreshIntervalMinutes) as? Int ?? 15
+        refreshOnLaunch = defaults.object(forKey: Keys.refreshOnLaunch) as? Bool ?? true
+        refreshOnWake = defaults.object(forKey: Keys.refreshOnWake) as? Bool ?? false
+        refreshOnScreenUnlock = defaults.object(forKey: Keys.refreshOnScreenUnlock) as? Bool ?? false
+        refreshOnSessionActive = defaults.object(forKey: Keys.refreshOnSessionActive) as? Bool ?? false
         sessionToken = defaults.string(forKey: Keys.sessionToken) ?? ""
     }
 
@@ -136,7 +160,11 @@ final class AppSettings: ObservableObject {
             showTotal: showTotal,
             showDaysLeft: showDaysLeft,
             showEstimate: showEstimate,
-            showSpend: showSpend
+            showSpend: showSpend,
+            refreshOnLaunch: refreshOnLaunch,
+            refreshOnWake: refreshOnWake,
+            refreshOnScreenUnlock: refreshOnScreenUnlock,
+            refreshOnSessionActive: refreshOnSessionActive
         )
     }
 
@@ -166,6 +194,10 @@ final class AppSettings: ObservableObject {
         if let value = file.showDaysLeft { showDaysLeft = value }
         if let value = file.showEstimate { showEstimate = value }
         if let value = file.showSpend { showSpend = value }
+        if let value = file.refreshOnLaunch { refreshOnLaunch = value }
+        if let value = file.refreshOnWake { refreshOnWake = value }
+        if let value = file.refreshOnScreenUnlock { refreshOnScreenUnlock = value }
+        if let value = file.refreshOnSessionActive { refreshOnSessionActive = value }
     }
 
     func importJSON(from data: Data) throws {

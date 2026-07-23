@@ -70,7 +70,7 @@ struct SettingsView: View {
         }
         .navigationSplitViewStyle(.balanced)
         .font(.system(size: 13 * settings.fontSize.scale))
-        .frame(minWidth: 640, minHeight: 420)
+        .frame(minWidth: 640, maxWidth: .infinity, minHeight: 420, maxHeight: .infinity)
         .onAppear {
             tokenDraft = settings.sessionToken
             if selectedPage == nil {
@@ -109,13 +109,28 @@ struct SettingsView: View {
                 Text("Shows total usage percent and days left in the billing cycle. Open Details for the full breakdown.")
             }
 
-            Section("Refresh") {
+            Section {
                 Stepper(value: $settings.refreshIntervalMinutes, in: 5...60, step: 5) {
                     Text("Every \(settings.refreshIntervalMinutes) minutes")
                 }
                 .onChange(of: settings.refreshIntervalMinutes) { _, _ in
                     viewModel.reschedule()
                 }
+            } header: {
+                Text("Schedule")
+            } footer: {
+                Text("Optional periodic refresh, independent of system triggers.")
+            }
+
+            Section {
+                Toggle("App launch", isOn: $settings.refreshOnLaunch)
+                Toggle("Wake from sleep", isOn: $settings.refreshOnWake)
+                Toggle("Screen unlock", isOn: $settings.refreshOnScreenUnlock)
+                Toggle("User session active", isOn: $settings.refreshOnSessionActive)
+            } header: {
+                Text("System triggers")
+            } footer: {
+                Text("Optional events that refresh usage, independent of the timer.")
             }
         }
         .formStyle(.grouped)
@@ -359,6 +374,7 @@ struct SettingsView: View {
             try settings.importJSON(from: data)
             tokenDraft = settings.sessionToken
             viewModel.reschedule()
+            viewModel.rebuildSystemTriggers()
             Task { await viewModel.refresh() }
             transferIsError = false
             transferMessage = "Imported from \(url.lastPathComponent)"

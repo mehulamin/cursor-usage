@@ -20,8 +20,11 @@ final class UsageViewModel: ObservableObject {
     private let client = UsageClient()
     private var refreshTask: Task<Void, Never>?
     private var timerCancellable: AnyCancellable?
-    private var settingsCancellable: AnyCancellable?
+    private var settingsCancellables = Set<AnyCancellable>()
     private var lastScheduledMinutes: Int?
+    private var didRefreshOnLaunch = false
+    private var workspaceObservers: [NSObjectProtocol] = []
+    private var distributedObservers: [NSObjectProtocol] = []
 
     var snapshot: UsageSnapshot? {
         if case .loaded(let s) = state { return s }
@@ -29,15 +32,31 @@ final class UsageViewModel: ObservableObject {
     }
 
     private init() {
-        settingsCancellable = settings.$refreshIntervalMinutes
+        settings.$refreshIntervalMinutes
             .removeDuplicates()
             .sink { [weak self] _ in
                 self?.reschedule()
             }
+            .store(in: &settingsCancellables)
+
+        Publishers.Merge3(
+            settings.$refreshOnWake.map { _ in () },
+            settings.$refreshOnScreenUnlock.map { _ in () },
+            settings.$refreshOnSessionActive.map { _ in () }
+        )
+        .debounce(for: .milliseconds(50), scheduler: RunLoop.main)
+        .sink { [weak self] in
+            self?.rebuildSystemTriggers()
+        }
+        .store(in: &settingsCancellables)
     }
 
     func start() {
-        Task { await refresh() }
+        rebuildSystemTriggers()
+        if settings.refreshOnLaunch, !didRefreshOnLaunch {
+            didRefreshOnLaunch = true
+            Task { await refresh() }
+        }
         reschedule()
     }
 
@@ -53,6 +72,64 @@ final class UsageViewModel: ObservableObject {
                     await self?.refresh()
                 }
             }
+    }
+
+    func rebuildSystemTriggers() {
+        removeSystemObservers()
+
+        let workspace = NSWorkspace.shared.notificationCenter
+        if settings.refreshOnWake {
+            workspaceObservers.append(
+                workspace.addObserver(
+                    forName: NSWorkspace.didWakeNotification,
+                    object: nil,
+                    queue: .main
+                ) { [weak self] _ in
+                    Task { @MainActor in
+                        await self?.refresh()
+                    }
+                }
+            )
+        }
+        if settings.refreshOnSessionActive {
+            workspaceObservers.append(
+                workspace.addObserver(
+                    forName: NSWorkspace.sessionDidBecomeActiveNotification,
+                    object: nil,
+                    queue: .main
+                ) { [weak self] _ in
+                    Task { @MainActor in
+                        await self?.refresh()
+                    }
+                }
+            )
+        }
+        if settings.refreshOnScreenUnlock {
+            distributedObservers.append(
+                DistributedNotificationCenter.default().addObserver(
+                    forName: Notification.Name("com.apple.screenIsUnlocked"),
+                    object: nil,
+                    queue: .main
+                ) { [weak self] _ in
+                    Task { @MainActor in
+                        await self?.refresh()
+                    }
+                }
+            )
+        }
+    }
+
+    private func removeSystemObservers() {
+        let workspace = NSWorkspace.shared.notificationCenter
+        for token in workspaceObservers {
+            workspace.removeObserver(token)
+        }
+        workspaceObservers.removeAll()
+        let distributed = DistributedNotificationCenter.default()
+        for token in distributedObservers {
+            distributed.removeObserver(token)
+        }
+        distributedObservers.removeAll()
     }
 
     func refresh() async {

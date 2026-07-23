@@ -19,6 +19,8 @@ enum SettingsWindowController {
             .environmentObject(AppSettings.shared)
 
         let hosting = NSHostingController(rootView: root)
+        hosting.sizingOptions = [.minSize]
+
         let window = NSWindow(contentViewController: hosting)
         window.title = "Cursor Usage Settings"
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
@@ -27,8 +29,6 @@ enum SettingsWindowController {
         window.isReleasedWhenClosed = false
         window.center()
         window.level = .floating
-        // Let SwiftUI drive the content size within min bounds.
-        window.contentView?.layoutSubtreeIfNeeded()
 
         Self.window = window
         NSApp.activate(ignoringOtherApps: true)
