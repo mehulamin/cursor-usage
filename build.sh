@@ -17,6 +17,7 @@ CONTENTS="$DEST/Contents"
 MACOS="$CONTENTS/MacOS"
 RESOURCES_DIR="$CONTENTS/Resources"
 ICON_ICNS="$ROOT/Resources/AppIcon.icns"
+ICON_PNG="$ROOT/Resources/AppIcon-1024.png"
 PLIST="$ROOT/Resources/Info.plist"
 # Tracked in git so every machine shares the same “last built sources” watermark.
 HASH_FILE="$ROOT/source.hash"
@@ -98,18 +99,32 @@ ok
 BIN="$ROOT/.build/release/$EXEC_NAME"
 [[ -x "$BIN" ]] || fail "Expected binary at ${BIN}"
 
+ensure_icns() {
+  if [[ ! -f "$ICON_PNG" ]]; then
+    fail "Missing ${ICON_PNG}"
+  fi
+  # Always regenerate so the .icns includes ic10 (1024). Plain `iconutil` often omits it,
+  # which makes Finder show the generic app placeholder.
+  step "Generating AppIcon.icns…"
+  swift "$ROOT/Scripts/make-icns.swift" "$ICON_PNG" "$ICON_ICNS" >/dev/null
+  ok
+}
+
 step "Assembling app bundle…"
 cp "$BIN" "$MACOS/$EXEC_NAME"
 chmod +x "$MACOS/$EXEC_NAME"
 cp "$PLIST" "$CONTENTS/Info.plist"
 # Classic bundle marker (APPL + creator; ???? = unregistered)
 printf 'APPL????' > "$CONTENTS/PkgInfo"
+ok
 
-if [[ -f "$ICON_ICNS" ]]; then
-  cp "$ICON_ICNS" "$RESOURCES_DIR/AppIcon.icns"
-  /usr/libexec/PlistBuddy -c 'Add :CFBundleIconFile string AppIcon' "$CONTENTS/Info.plist" 2>/dev/null \
-    || /usr/libexec/PlistBuddy -c 'Set :CFBundleIconFile AppIcon' "$CONTENTS/Info.plist"
-fi
+ensure_icns
+cp "$ICON_ICNS" "$RESOURCES_DIR/AppIcon.icns"
+/usr/libexec/PlistBuddy -c 'Add :CFBundleIconFile string AppIcon' "$CONTENTS/Info.plist" 2>/dev/null \
+  || /usr/libexec/PlistBuddy -c 'Set :CFBundleIconFile AppIcon' "$CONTENTS/Info.plist"
+# Stamp Finder icon onto the bundle (Icon\r) so list/column views refresh reliably
+step "Stamping Finder icon…"
+swift "$ROOT/Scripts/stamp-icon.swift" "$DEST" "$ICON_ICNS" >/dev/null
 ok
 
 # Ad-hoc sign so macOS Gatekeeper is happier for local use
