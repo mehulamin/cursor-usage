@@ -1,126 +1,280 @@
+import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
+
+private enum SettingsPage: String, CaseIterable, Identifiable, Hashable {
+    case general
+    case account
+    case backup
+    case about
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .general: return "General"
+        case .account: return "Account"
+        case .backup: return "Backup"
+        case .about: return "About"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .general: return "gearshape"
+        case .account: return "key.fill"
+        case .backup: return "square.and.arrow.up.on.square"
+        case .about: return "info.circle"
+        }
+    }
+}
 
 struct SettingsView: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var viewModel: UsageViewModel
+    @State private var selectedPage: SettingsPage? = .general
     @State private var tokenDraft: String = ""
     @State private var showToken = false
     @State private var detectMessage: String?
+    @State private var includeTokenInExport = true
+    @State private var transferMessage: String?
+    @State private var transferIsError = false
+    @State private var showingTokenHelp = false
+    @State private var columnVisibility = NavigationSplitViewVisibility.all
 
     var body: some View {
-        Form {
-            appearanceSection
-            menuBarSection
-            refreshSection
-            accountSection
-            aboutSection
+        NavigationSplitView(columnVisibility: $columnVisibility) {
+            List(SettingsPage.allCases, selection: $selectedPage) { page in
+                Label(page.title, systemImage: page.systemImage)
+                    .tag(page)
+            }
+            .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 240)
+            .listStyle(.sidebar)
+        } detail: {
+            Group {
+                switch selectedPage ?? .general {
+                case .general:
+                    generalPage
+                case .account:
+                    accountPage
+                case .backup:
+                    backupPage
+                case .about:
+                    aboutPage
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .navigationTitle((selectedPage ?? .general).title)
         }
-        .formStyle(.grouped)
-        .frame(width: 480, height: 560)
+        .navigationSplitViewStyle(.balanced)
         .font(.system(size: 13 * settings.fontSize.scale))
+        .frame(minWidth: 640, minHeight: 420)
         .onAppear {
             tokenDraft = settings.sessionToken
-        }
-    }
-
-    private var appearanceSection: some View {
-        Section("Appearance") {
-            Picker("Font Size", selection: $settings.fontSize) {
-                ForEach(FontSizeOption.allCases) { option in
-                    Text(option.label).tag(option)
-                }
-            }
-            .pickerStyle(.segmented)
-            .accessibilityLabel("Font size")
-        }
-    }
-
-    private var menuBarSection: some View {
-        Section {
-            LabeledContent("Format", value: "80% * 11d")
-        } header: {
-            Text("Menu Bar")
-        } footer: {
-            Text("Shows total usage percent and days left in the billing cycle. Open Details for the full breakdown.")
-        }
-    }
-
-    private var refreshSection: some View {
-        Section("Refresh") {
-            Stepper(value: $settings.refreshIntervalMinutes, in: 5...60, step: 5) {
-                Text("Every \(settings.refreshIntervalMinutes) minutes")
-            }
-            .onChange(of: settings.refreshIntervalMinutes) { _, _ in
-                viewModel.reschedule()
+            if selectedPage == nil {
+                selectedPage = .general
             }
         }
+        .onChange(of: settings.sessionToken) { _, newValue in
+            if tokenDraft != newValue {
+                tokenDraft = newValue
+            }
+        }
+        .sheet(isPresented: $showingTokenHelp) {
+            TokenHelpSheet()
+        }
     }
 
-    private var accountSection: some View {
-        Section {
-            HStack {
-                Group {
-                    if showToken {
-                        TextField("Session token", text: $tokenDraft)
-                    } else {
-                        SecureField("Session token", text: $tokenDraft)
+    // MARK: - Pages
+
+    private var generalPage: some View {
+        Form {
+            Section("Appearance") {
+                Picker("Font Size", selection: $settings.fontSize) {
+                    ForEach(FontSizeOption.allCases) { option in
+                        Text(option.label).tag(option)
                     }
                 }
-                .textFieldStyle(.roundedBorder)
-                .onSubmit(saveToken)
-
-                Button {
-                    showToken.toggle()
-                } label: {
-                    Image(systemName: showToken ? "eye.slash" : "eye")
-                }
-                .help(showToken ? "Hide token" : "Show token")
+                .pickerStyle(.segmented)
+                .accessibilityLabel("Font size")
             }
 
-            HStack {
-                Button("Save Token") {
-                    saveToken()
-                }
-                .keyboardShortcut(.defaultAction)
+            Section {
+                LabeledContent("Format", value: "80% · 11d")
+            } header: {
+                Text("Menu Bar")
+            } footer: {
+                Text("Shows total usage percent and days left in the billing cycle. Open Details for the full breakdown.")
+            }
 
-                Button("Detect from Cursor") {
-                    detectMessage = "Detecting…"
-                    Task {
-                        if let token = await TokenStore.autoDetectToken() {
-                            tokenDraft = token
-                            settings.sessionToken = token
-                            detectMessage = "Token detected from Cursor."
-                            await viewModel.refresh()
-                        } else {
-                            detectMessage = "Could not find a token in Cursor’s local database."
-                        }
+            Section("Refresh") {
+                Stepper(value: $settings.refreshIntervalMinutes, in: 5...60, step: 5) {
+                    Text("Every \(settings.refreshIntervalMinutes) minutes")
+                }
+                .onChange(of: settings.refreshIntervalMinutes) { _, _ in
+                    viewModel.reschedule()
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .padding()
+    }
+
+    private var accountPage: some View {
+        Form {
+            Section {
+                HStack(alignment: .firstTextBaseline) {
+                    Text("WorkosCursorSessionToken")
+                        .font(.headline)
+                    Spacer()
+                    Button {
+                        showingTokenHelp = true
+                    } label: {
+                        Image(systemName: "info.circle")
+                            .symbolRenderingMode(.hierarchical)
+                            .foregroundStyle(.secondary)
+                            .imageScale(.large)
                     }
+                    .buttonStyle(.plain)
+                    .help("How to update your Cursor session token")
+                    .accessibilityLabel("How to update your Cursor session token")
                 }
 
-                Button("Clear", role: .destructive) {
-                    tokenDraft = ""
-                    settings.sessionToken = ""
-                    detectMessage = nil
-                }
-            }
-
-            if let detectMessage {
-                Text(detectMessage)
+                Text("This is the cookie / session token the app uses to fetch Cursor usage.")
                     .foregroundStyle(.secondary)
                     .font(.callout)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                HStack(alignment: .top) {
+                    Group {
+                        if showToken {
+                            TextField("Paste token here", text: $tokenDraft, axis: .vertical)
+                                .lineLimit(3...8)
+                        } else {
+                            SecureField("Paste token here", text: $tokenDraft)
+                        }
+                    }
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit(saveToken)
+
+                    Button {
+                        showToken.toggle()
+                    } label: {
+                        Image(systemName: showToken ? "eye.slash" : "eye")
+                    }
+                    .help(showToken ? "Hide token" : "Show token")
+                }
+
+                LabeledContent("Expires") {
+                    Text(TokenStore.expirationSummary(ofToken: tokenDraft.isEmpty ? settings.sessionToken : tokenDraft))
+                        .foregroundStyle(expirationColor)
+                        .multilineTextAlignment(.trailing)
+                }
+
+                HStack {
+                    Button("Save Token") {
+                        saveToken()
+                    }
+                    .keyboardShortcut(.defaultAction)
+
+                    Button("Detect from Cursor") {
+                        detectMessage = "Detecting…"
+                        Task {
+                            if let token = await TokenStore.autoDetectToken() {
+                                tokenDraft = token
+                                settings.sessionToken = token
+                                detectMessage = "Token detected from Cursor."
+                                await viewModel.refresh()
+                            } else {
+                                detectMessage = "Could not find a token in Cursor’s local database."
+                            }
+                        }
+                    }
+
+                    Button("Clear", role: .destructive) {
+                        tokenDraft = ""
+                        settings.sessionToken = ""
+                        detectMessage = nil
+                    }
+                }
+
+                if let detectMessage {
+                    Text(detectMessage)
+                        .foregroundStyle(.secondary)
+                        .font(.callout)
+                }
+            } header: {
+                Text("Cursor Session")
+            } footer: {
+                Text("When the token expires, usage refresh fails until you paste a new WorkosCursorSessionToken or detect it again from Cursor.")
             }
-        } header: {
-            Text("Account")
-        } footer: {
-            Text("Paste the WorkosCursorSessionToken cookie from cursor.com, or detect the token Cursor stores locally.")
         }
+        .formStyle(.grouped)
+        .padding()
     }
 
-    private var aboutSection: some View {
-        Section("About") {
-            LabeledContent("Version", value: AppVersion.display)
-            LabeledContent("Build", value: AppVersion.build)
+    private var backupPage: some View {
+        Form {
+            Section {
+                Toggle("Include session token in export", isOn: $includeTokenInExport)
+
+                HStack {
+                    Button("Export…") {
+                        exportSettings()
+                    }
+                    Button("Import…") {
+                        importSettings()
+                    }
+                }
+
+                if let transferMessage {
+                    Text(transferMessage)
+                        .foregroundStyle(transferIsError ? .red : .secondary)
+                        .font(.callout)
+                        .textSelection(.enabled)
+                }
+            } header: {
+                Text("Backup")
+            } footer: {
+                Text("Export settings to a JSON file, or import from another Mac. Treat exported files as secrets if they include your session token.")
+            }
         }
+        .formStyle(.grouped)
+        .padding()
+    }
+
+    private var aboutPage: some View {
+        Form {
+            Section("About") {
+                LabeledContent("App", value: "Cursor Usage")
+                LabeledContent("Version", value: AppVersion.display)
+                LabeledContent("Build", value: AppVersion.build)
+            }
+
+            Section {
+                Link("Open Cursor Settings", destination: URL(string: "https://cursor.com/settings")!)
+            } footer: {
+                Text("Cursor Usage is a local menu-bar companion for Cursor Pro usage metrics.")
+            }
+        }
+        .formStyle(.grouped)
+        .padding()
+    }
+
+    private var expirationColor: Color {
+        let token = tokenDraft.isEmpty ? settings.sessionToken : tokenDraft
+        if token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return .secondary
+        }
+        if TokenStore.isExpired(token) {
+            return .red
+        }
+        if let exp = TokenStore.expirationDate(ofToken: token),
+           let days = Calendar.current.dateComponents([.day], from: Date(), to: exp).day,
+           days <= 7 {
+            return .orange
+        }
+        return .secondary
     }
 
     private func saveToken() {
@@ -129,5 +283,124 @@ struct SettingsView: View {
         settings.sessionToken = normalized
         detectMessage = normalized.isEmpty ? "Token cleared." : "Token saved."
         Task { await viewModel.refresh() }
+    }
+
+    private func exportSettings() {
+        do {
+            let data = try settings.exportJSON(includeSessionToken: includeTokenInExport)
+            let panel = NSSavePanel()
+            panel.allowedContentTypes = [.json]
+            panel.nameFieldStringValue = "cursor-usage-settings.json"
+            panel.canCreateDirectories = true
+            panel.title = "Export Cursor Usage Settings"
+            panel.message = includeTokenInExport
+                ? "This file may contain your session token."
+                : "Session token will be omitted from this export."
+
+            guard panel.runModal() == .OK, let url = panel.url else {
+                return
+            }
+            try data.write(to: url, options: Data.WritingOptions.atomic)
+            transferIsError = false
+            transferMessage = "Exported to \(url.lastPathComponent)"
+        } catch {
+            transferIsError = true
+            transferMessage = error.localizedDescription
+        }
+    }
+
+    private func importSettings() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.json]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.title = "Import Cursor Usage Settings"
+        panel.message = "Choose a Cursor Usage settings JSON file."
+
+        guard panel.runModal() == .OK, let url = panel.url else {
+            return
+        }
+
+        do {
+            let data = try Data(contentsOf: url)
+            try settings.importJSON(from: data)
+            tokenDraft = settings.sessionToken
+            viewModel.reschedule()
+            Task { await viewModel.refresh() }
+            transferIsError = false
+            transferMessage = "Imported from \(url.lastPathComponent)"
+        } catch {
+            transferIsError = true
+            transferMessage = error.localizedDescription
+        }
+    }
+}
+
+private struct TokenHelpSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Label("Update Cursor Session Token", systemImage: "key.fill")
+                    .font(.title2.weight(.semibold))
+                Spacer()
+                Button("Done") { dismiss() }
+                    .keyboardShortcut(.defaultAction)
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 20)
+            .padding(.bottom, 12)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("This app authenticates with the WorkosCursorSessionToken cookie from cursor.com (same value Cursor stores locally).")
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    GroupBox("Option A — Copy from browser") {
+                        VStack(alignment: .leading, spacing: 8) {
+                            step(1, "Open https://cursor.com in your browser and sign in.")
+                            step(2, "Open Developer Tools (Safari: Develop → Show Web Inspector; Chrome: View → Developer → Developer Tools).")
+                            step(3, "Go to Storage / Application → Cookies → https://cursor.com.")
+                            step(4, "Find the cookie named WorkosCursorSessionToken and copy its value.")
+                            step(5, "Paste it into Settings → Account, then click Save Token.")
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 4)
+                    }
+
+                    GroupBox("Option B — Detect from Cursor app") {
+                        VStack(alignment: .leading, spacing: 8) {
+                            step(1, "Make sure the Cursor desktop app is installed and you are signed in.")
+                            step(2, "In Settings → Account, click Detect from Cursor.")
+                            step(3, "If detection succeeds, click Save Token if needed, then Refresh from the menu bar.")
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 4)
+                    }
+
+                    Text("When the token expires, usage requests return an auth error. Update it with Option A or B, then Refresh.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 20)
+            }
+        }
+        .frame(minWidth: 560, idealWidth: 600, maxWidth: 720,
+               minHeight: 520, idealHeight: 560, maxHeight: 800)
+    }
+
+    private func step(_ number: Int, _ text: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Text("\(number).")
+                .fontWeight(.semibold)
+                .foregroundStyle(.secondary)
+                .frame(width: 20, alignment: .trailing)
+            Text(text)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 }

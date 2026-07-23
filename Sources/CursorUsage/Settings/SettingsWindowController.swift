@@ -21,11 +21,14 @@ enum SettingsWindowController {
         let hosting = NSHostingController(rootView: root)
         let window = NSWindow(contentViewController: hosting)
         window.title = "Cursor Usage Settings"
-        window.styleMask = [.titled, .closable, .miniaturizable]
-        window.setContentSize(NSSize(width: 480, height: 560))
+        window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+        window.setContentSize(NSSize(width: 720, height: 480))
+        window.minSize = NSSize(width: 640, height: 420)
         window.isReleasedWhenClosed = false
         window.center()
         window.level = .floating
+        // Let SwiftUI drive the content size within min bounds.
+        window.contentView?.layoutSubtreeIfNeeded()
 
         Self.window = window
         NSApp.activate(ignoringOtherApps: true)

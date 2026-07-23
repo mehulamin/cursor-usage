@@ -182,10 +182,10 @@ private struct MetricRow: View {
                 if let projected = pace.projected, pace.severity != .none {
                     Text(percent >= 100 ? "max" : "~\(projected)%")
                         .font(.system(size: 11 * fontScale, weight: .semibold).monospacedDigit())
-                        .foregroundStyle(pace.severity.color)
+                        .foregroundStyle(pace.severity.chipForeground)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
-                        .background(pace.severity.color.opacity(0.12), in: Capsule())
+                        .background(pace.severity.chipBackground, in: Capsule())
                 }
             }
             ProgressView(value: min(Double(percent), 100), total: 100)

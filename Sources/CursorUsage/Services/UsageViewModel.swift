@@ -118,21 +118,22 @@ final class UsageViewModel: ObservableObject {
             }
             return "error"
         case .loaded(let snap):
-            // Compact menu bar: "80% * 11d"
+            // Compact menu bar: "80% · 11d"
             let daysBit: String
             if let days = snap.daysLeft {
                 daysBit = "\(days)d"
             } else {
                 daysBit = "?d"
             }
-            return "\(snap.totalRounded)% * \(daysBit)"
+            return "\(snap.totalRounded)% · \(daysBit)"
         }
     }
 
     func statusSeverity() -> MenuBarSeverity {
         switch state {
         case .loaded(let snap):
-            switch snap.overallSeverity {
+            // Color from estimated end-of-cycle Total only (not Auto/API).
+            switch snap.totalPace.severity {
             case .none: return .normal
             case .warning: return .warning
             case .critical: return .critical

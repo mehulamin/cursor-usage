@@ -38,12 +38,39 @@ enum FontSizeOption: String, CaseIterable, Identifiable {
     }
 }
 
+/// JSON schema for settings backup / restore.
+struct SettingsFile: Codable, Equatable {
+    var formatVersion: Int = 1
+    var fontSize: String
+    var refreshIntervalMinutes: Int
+    var sessionToken: String?
+    var showAuto: Bool?
+    var showAPI: Bool?
+    var showTotal: Bool?
+    var showDaysLeft: Bool?
+    var showEstimate: Bool?
+    var showSpend: Bool?
+}
+
+enum SettingsTransferError: LocalizedError {
+    case encodeFailed
+    case decodeFailed
+    case invalidFontSize(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .encodeFailed: return "Could not encode settings to JSON."
+        case .decodeFailed: return "Could not read settings from that file."
+        case .invalidFontSize(let value): return "Unknown font size “\(value)”."
+        }
+    }
+}
+
 @MainActor
 final class AppSettings: ObservableObject {
     static let shared = AppSettings()
 
     private let defaults = UserDefaults.standard
-    private var cancellable: AnyCancellable?
 
     @Published var fontSize: FontSizeOption {
         didSet { defaults.set(fontSize.rawValue, forKey: Keys.fontSize) }
@@ -96,5 +123,59 @@ final class AppSettings: ObservableObject {
         showSpend = defaults.object(forKey: Keys.showSpend) as? Bool ?? false
         refreshIntervalMinutes = defaults.object(forKey: Keys.refreshIntervalMinutes) as? Int ?? 15
         sessionToken = defaults.string(forKey: Keys.sessionToken) ?? ""
+    }
+
+    func makeExportPayload(includeSessionToken: Bool) -> SettingsFile {
+        SettingsFile(
+            formatVersion: 1,
+            fontSize: fontSize.rawValue,
+            refreshIntervalMinutes: refreshIntervalMinutes,
+            sessionToken: includeSessionToken ? sessionToken : nil,
+            showAuto: showAuto,
+            showAPI: showAPI,
+            showTotal: showTotal,
+            showDaysLeft: showDaysLeft,
+            showEstimate: showEstimate,
+            showSpend: showSpend
+        )
+    }
+
+    func exportJSON(includeSessionToken: Bool) throws -> Data {
+        let payload = makeExportPayload(includeSessionToken: includeSessionToken)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        do {
+            return try encoder.encode(payload)
+        } catch {
+            throw SettingsTransferError.encodeFailed
+        }
+    }
+
+    func applyImport(_ file: SettingsFile) throws {
+        guard let size = FontSizeOption(rawValue: file.fontSize) else {
+            throw SettingsTransferError.invalidFontSize(file.fontSize)
+        }
+        fontSize = size
+        refreshIntervalMinutes = max(5, min(60, file.refreshIntervalMinutes))
+        if let token = file.sessionToken {
+            sessionToken = TokenStore.normalizeToken(token)
+        }
+        if let value = file.showAuto { showAuto = value }
+        if let value = file.showAPI { showAPI = value }
+        if let value = file.showTotal { showTotal = value }
+        if let value = file.showDaysLeft { showDaysLeft = value }
+        if let value = file.showEstimate { showEstimate = value }
+        if let value = file.showSpend { showSpend = value }
+    }
+
+    func importJSON(from data: Data) throws {
+        let decoder = JSONDecoder()
+        let file: SettingsFile
+        do {
+            file = try decoder.decode(SettingsFile.self, from: data)
+        } catch {
+            throw SettingsTransferError.decodeFailed
+        }
+        try applyImport(file)
     }
 }

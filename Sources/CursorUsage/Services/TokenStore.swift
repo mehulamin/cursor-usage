@@ -28,6 +28,68 @@ enum TokenStore {
         return token
     }
 
+    /// Decode JWT `exp` without verifying the signature (for display only).
+    static func expirationDate(ofToken raw: String) -> Date? {
+        let jwt = bearerFromToken(normalizeToken(raw))
+        let parts = jwt.split(separator: ".", omittingEmptySubsequences: false)
+        guard parts.count >= 2 else { return nil }
+        guard let payloadData = base64URLDecode(String(parts[1])),
+              let json = try? JSONSerialization.jsonObject(with: payloadData) as? [String: Any] else {
+            return nil
+        }
+        let expValue: Double?
+        if let n = json["exp"] as? Double {
+            expValue = n
+        } else if let n = json["exp"] as? Int {
+            expValue = Double(n)
+        } else if let s = json["exp"] as? String, let n = Double(s) {
+            expValue = n
+        } else {
+            expValue = nil
+        }
+        guard let expValue else { return nil }
+        return Date(timeIntervalSince1970: expValue)
+    }
+
+    static func expirationSummary(ofToken raw: String, now: Date = Date()) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "No token saved" }
+        guard let exp = expirationDate(ofToken: trimmed) else {
+            return "Expiration unknown"
+        }
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        let stamped = formatter.string(from: exp)
+        if exp <= now {
+            return "Expired \(stamped)"
+        }
+        let days = Calendar.current.dateComponents([.day], from: now, to: exp).day ?? 0
+        if days == 0 {
+            return "Expires today · \(stamped)"
+        }
+        if days == 1 {
+            return "Expires tomorrow · \(stamped)"
+        }
+        return "Expires in \(days) days · \(stamped)"
+    }
+
+    static func isExpired(_ raw: String, now: Date = Date()) -> Bool {
+        guard let exp = expirationDate(ofToken: raw) else { return false }
+        return exp <= now
+    }
+
+    private static func base64URLDecode(_ value: String) -> Data? {
+        var base64 = value
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        let remainder = base64.count % 4
+        if remainder > 0 {
+            base64.append(String(repeating: "=", count: 4 - remainder))
+        }
+        return Data(base64Encoded: base64)
+    }
+
     static func cursorStateDBPath() -> URL {
         FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Application Support/Cursor/User/globalStorage/state.vscdb")

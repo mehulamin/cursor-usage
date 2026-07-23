@@ -15,6 +15,29 @@ enum PaceSeverity: Equatable {
         }
     }
 
+    /// High-contrast label for pace chips (yellow-on-cream was unreadable).
+    var chipForeground: Color {
+        switch self {
+        case .none:
+            return Color(red: 21 / 255, green: 128 / 255, blue: 61 / 255) // dark green
+        case .warning:
+            return Color(red: 113 / 255, green: 63 / 255, blue: 18 / 255) // dark amber
+        case .critical:
+            return Color(red: 154 / 255, green: 52 / 255, blue: 18 / 255) // dark orange
+        }
+    }
+
+    var chipBackground: Color {
+        switch self {
+        case .none:
+            return Color(red: 220 / 255, green: 252 / 255, blue: 231 / 255) // green-100
+        case .warning:
+            return Color(red: 254 / 255, green: 243 / 255, blue: 199 / 255) // amber-100
+        case .critical:
+            return Color(red: 255 / 255, green: 237 / 255, blue: 213 / 255) // orange-100
+        }
+    }
+
     var nsColor: NSColor {
         switch self {
         case .none:
