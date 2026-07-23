@@ -145,23 +145,25 @@ struct DetailsPopoverView: View {
                 }
                 .buttonStyle(.link)
 
-                Button {
-                    Task { await viewModel.refresh() }
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                }
-                .buttonStyle(.link)
-                .disabled(isLoading)
-                .help("Refresh usage")
-                .accessibilityLabel("Refresh")
-
                 Spacer(minLength: 8)
 
-                if case .loaded(let snap) = viewModel.state {
-                    Text(relativeTime(snap.fetchedAt))
-                        .font(.system(size: 12 * fontScale))
-                        .foregroundStyle(.tertiary)
-                        .accessibilityLabel("Last refreshed \(relativeTime(snap.fetchedAt))")
+                HStack(spacing: 4) {
+                    if case .loaded(let snap) = viewModel.state {
+                        Text(relativeTime(snap.fetchedAt))
+                            .font(.system(size: 12 * fontScale))
+                            .foregroundStyle(.tertiary)
+                            .accessibilityLabel("Last refreshed \(relativeTime(snap.fetchedAt))")
+                    }
+
+                    Button {
+                        Task { await viewModel.refresh() }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .buttonStyle(.link)
+                    .disabled(isLoading)
+                    .help("Refresh usage")
+                    .accessibilityLabel("Refresh")
                 }
             }
         }
