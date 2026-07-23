@@ -36,12 +36,11 @@ struct SettingsView: View {
     @State private var tokenDraft: String = ""
     @State private var showToken = false
     @State private var detectMessage: String?
-    @State private var isDetecting = false
-    @State private var confirmingDetect = false
     @State private var includeTokenInExport = true
     @State private var transferMessage: String?
     @State private var transferIsError = false
     @State private var showingTokenHelp = false
+    @State private var showingDetectToken = false
     @State private var columnVisibility = NavigationSplitViewVisibility.all
 
     var body: some View {
@@ -84,6 +83,15 @@ struct SettingsView: View {
         }
         .sheet(isPresented: $showingTokenHelp) {
             TokenHelpSheet()
+        }
+        .sheet(isPresented: $showingDetectToken) {
+            DetectTokenSheet(
+                savedToken: settings.sessionToken,
+                draftToken: tokenDraft
+            ) { detected in
+                tokenDraft = detected
+                detectMessage = "Detected token filled in. Click Save Token to keep it."
+            }
         }
     }
 
@@ -211,27 +219,14 @@ struct SettingsView: View {
                     .disabled(!canSaveToken)
 
                     Button("Detect from Cursor") {
-                        confirmingDetect = true
+                        showingDetectToken = true
                     }
-                    .disabled(isDetecting)
 
                     Button("Clear", role: .destructive) {
                         tokenDraft = ""
                         settings.sessionToken = ""
                         detectMessage = nil
                     }
-                }
-                .confirmationDialog(
-                    "Detect token from Cursor?",
-                    isPresented: $confirmingDetect,
-                    titleVisibility: .visible
-                ) {
-                    Button("Detect and Test") {
-                        detectAndTestToken()
-                    }
-                    Button("Cancel", role: .cancel) {}
-                } message: {
-                    Text("Cursor Usage will read a session token from Cursor’s local data, test it against Cursor’s API, and only then fill the field so you can save it.")
                 }
 
                 if let detectMessage {
@@ -331,28 +326,6 @@ struct SettingsView: View {
         Task { await viewModel.refresh() }
     }
 
-    private func detectAndTestToken() {
-        isDetecting = true
-        detectMessage = "Detecting…"
-        Task {
-            defer { isDetecting = false }
-
-            guard let token = await TokenStore.autoDetectToken() else {
-                detectMessage = "Could not find a token in Cursor’s local database."
-                return
-            }
-
-            detectMessage = "Testing detected token…"
-            do {
-                _ = try await UsageClient().fetchUsage(token: token)
-                tokenDraft = token
-                detectMessage = "Token detected and verified. Click Save Token to keep it."
-            } catch {
-                detectMessage = "Detected a token, but it failed verification: \(error.localizedDescription)"
-            }
-        }
-    }
-
     private func exportSettings() {
         do {
             let data = try settings.exportJSON(includeSessionToken: includeTokenInExport)
@@ -405,6 +378,376 @@ struct SettingsView: View {
     }
 }
 
+private struct DetectTokenSheet: View {
+    enum Phase {
+        case detecting
+        case testing
+        case ready
+        case failed(String)
+    }
+
+    let savedToken: String
+    let draftToken: String
+    let onUseToken: (String) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var phase: Phase = .detecting
+    @State private var detectedToken: String?
+    @State private var showDetectedToken = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Label("Detect from Cursor", systemImage: "magnifyingglass")
+                    .font(.title2.weight(.semibold))
+                Spacer()
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 20)
+            .padding(.bottom, 12)
+
+            VStack(alignment: .leading, spacing: 16) {
+                statusSection
+
+                if let detectedToken {
+                    tokenValueSection(detectedToken)
+                    comparisonTable(detectedToken)
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 16)
+
+            Divider()
+
+            HStack {
+                Spacer()
+                Button("Cancel") {
+                    dismiss()
+                }
+                .keyboardShortcut(.cancelAction)
+
+                Button("Use new Token") {
+                    guard let detectedToken else { return }
+                    onUseToken(detectedToken)
+                    dismiss()
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(!canUseNewToken)
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 14)
+        }
+        .frame(width: 520)
+        .fixedSize(horizontal: false, vertical: true)
+        .task {
+            await detect()
+        }
+    }
+
+    private var canUseNewToken: Bool {
+        guard let detectedToken else { return false }
+        switch phase {
+        case .detecting, .testing:
+            return false
+        case .ready, .failed:
+            return TokenStore.normalizeToken(detectedToken) != TokenStore.normalizeToken(draftToken)
+        }
+    }
+
+    private var statusSection: some View {
+        GroupBox("Status") {
+            VStack(alignment: .leading, spacing: 6) {
+                switch phase {
+                case .detecting:
+                    Label("Reading Cursor’s local session data…", systemImage: "ellipsis.circle")
+                        .foregroundStyle(.secondary)
+                case .testing:
+                    Label("Testing detected token against Cursor’s API…", systemImage: "network")
+                        .foregroundStyle(.secondary)
+                case .ready:
+                    Label("Token detected and verified.", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                case .failed(let message):
+                    Label(message, systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 4)
+        }
+    }
+
+    private func tokenValueSection(_ token: String) -> some View {
+        GroupBox("Detected value") {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .top) {
+                    Group {
+                        if showDetectedToken {
+                            Text(token)
+                                .textSelection(.enabled)
+                        } else {
+                            Text(maskedToken(token))
+                                .textSelection(.enabled)
+                        }
+                    }
+                    .font(.system(.body, design: .monospaced))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Button {
+                        showDetectedToken.toggle()
+                    } label: {
+                        Image(systemName: showDetectedToken ? "eye.slash" : "eye")
+                    }
+                    .help(showDetectedToken ? "Hide token" : "Show token")
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 4)
+        }
+    }
+
+    private func comparisonTable(_ token: String) -> some View {
+        let normalizedDetected = TokenStore.normalizeToken(token)
+        let normalizedSaved = TokenStore.normalizeToken(savedToken)
+        let hasSaved = !normalizedSaved.isEmpty
+        let isSameToken = hasSaved && normalizedDetected == normalizedSaved
+        let alreadyInField = !TokenStore.normalizeToken(draftToken).isEmpty
+            && TokenStore.normalizeToken(token) == TokenStore.normalizeToken(draftToken)
+
+        return GroupBox("Compared to saved") {
+            VStack(alignment: .leading, spacing: 0) {
+                comparisonHeader
+
+                Divider().padding(.vertical, 8)
+
+                comparisonRow(label: "Token") {
+                    VStack(alignment: .leading, spacing: 4) {
+                        comparisonBadge(
+                            title: hasSaved ? (isSameToken ? "Same" : "Different") : "New",
+                            tint: hasSaved ? (isSameToken ? .secondary : .orange) : .blue
+                        )
+                        Text(maskedToken(token))
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                    }
+                } saved: {
+                    VStack(alignment: .leading, spacing: 4) {
+                        if hasSaved {
+                            comparisonBadge(
+                                title: isSameToken ? "Same" : "Different",
+                                tint: isSameToken ? .secondary : .orange
+                            )
+                            Text(maskedToken(savedToken))
+                                .font(.system(.caption, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .textSelection(.enabled)
+                        } else {
+                            Text("None saved")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                Divider().padding(.vertical, 8)
+
+                comparisonRow(label: "Expires") {
+                    expirationCell(for: token)
+                } saved: {
+                    if hasSaved {
+                        expirationCell(for: savedToken)
+                    } else {
+                        Text("—")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Divider().padding(.vertical, 8)
+
+                Text(comparisonVerdict(
+                    hasSaved: hasSaved,
+                    isSameToken: isSameToken,
+                    detected: token,
+                    saved: savedToken,
+                    alreadyInField: alreadyInField
+                ))
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.vertical, 4)
+        }
+    }
+
+    private var comparisonHeader: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Color.clear.frame(width: 64)
+            Text("Detected")
+                .font(.subheadline.weight(.semibold))
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text("Saved")
+                .font(.subheadline.weight(.semibold))
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func comparisonRow<Detected: View, Saved: View>(
+        label: String,
+        @ViewBuilder detected: () -> Detected,
+        @ViewBuilder saved: () -> Saved
+    ) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text(label)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.secondary)
+                .frame(width: 64, alignment: .leading)
+            detected()
+                .frame(maxWidth: .infinity, alignment: .leading)
+            saved()
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func comparisonBadge(title: String, tint: Color) -> some View {
+        Text(title)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(tint)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(tint.opacity(0.12), in: Capsule())
+    }
+
+    private func expirationCell(for token: String) -> some View {
+        let summary = shortExpirationSummary(ofToken: token)
+        return VStack(alignment: .leading, spacing: 2) {
+            Text(summary.primary)
+                .foregroundStyle(expirationColor(for: token))
+            if let secondary = summary.secondary {
+                Text(secondary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func shortExpirationSummary(ofToken raw: String, now: Date = Date()) -> (primary: String, secondary: String?) {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return ("No token", nil) }
+        guard let exp = TokenStore.expirationDate(ofToken: trimmed) else {
+            return ("Unknown", nil)
+        }
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        let stamped = formatter.string(from: exp)
+        if exp <= now {
+            return ("Expired", stamped)
+        }
+        let days = Calendar.current.dateComponents([.day], from: now, to: exp).day ?? 0
+        let relative: String
+        if days == 0 {
+            relative = "Today"
+        } else if days == 1 {
+            relative = "Tomorrow"
+        } else {
+            relative = "In \(days) days"
+        }
+        return (relative, stamped)
+    }
+
+    private func comparisonVerdict(
+        hasSaved: Bool,
+        isSameToken: Bool,
+        detected: String,
+        saved: String,
+        alreadyInField: Bool
+    ) -> String {
+        var parts: [String] = []
+
+        if !hasSaved {
+            parts.append("No saved token to compare")
+        } else if isSameToken {
+            parts.append("Same token")
+        } else {
+            parts.append("Different token")
+        }
+
+        if hasSaved,
+           let detectedExp = TokenStore.expirationDate(ofToken: detected),
+           let savedExp = TokenStore.expirationDate(ofToken: saved) {
+            if detectedExp == savedExp {
+                parts.append("same expiration")
+            } else if detectedExp > savedExp {
+                let days = Calendar.current.dateComponents([.day], from: savedExp, to: detectedExp).day ?? 0
+                if days > 0 {
+                    parts.append("expires \(days) day\(days == 1 ? "" : "s") later")
+                } else {
+                    parts.append("expires later")
+                }
+            } else {
+                let days = Calendar.current.dateComponents([.day], from: detectedExp, to: savedExp).day ?? 0
+                if days > 0 {
+                    parts.append("expires \(days) day\(days == 1 ? "" : "s") sooner")
+                } else {
+                    parts.append("expires sooner")
+                }
+            }
+        }
+
+        var line = parts.joined(separator: " · ")
+        if alreadyInField {
+            line += ". Already in the Account field"
+        }
+        return line + "."
+    }
+
+    private func expirationColor(for token: String) -> Color {
+        if token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return .secondary
+        }
+        if TokenStore.isExpired(token) {
+            return .red
+        }
+        if let exp = TokenStore.expirationDate(ofToken: token),
+           let days = Calendar.current.dateComponents([.day], from: Date(), to: exp).day,
+           days <= 7 {
+            return .orange
+        }
+        return .primary
+    }
+
+    private func maskedToken(_ token: String) -> String {
+        let normalized = TokenStore.normalizeToken(token)
+        guard normalized.count > 12 else {
+            return String(repeating: "•", count: max(normalized.count, 8))
+        }
+        let prefix = normalized.prefix(6)
+        let suffix = normalized.suffix(4)
+        return "\(prefix)…\(suffix)"
+    }
+
+    private func detect() async {
+        phase = .detecting
+        detectedToken = nil
+
+        guard let token = await TokenStore.autoDetectToken() else {
+            phase = .failed("Could not find a token in Cursor’s local database.")
+            return
+        }
+
+        detectedToken = token
+        phase = .testing
+
+        do {
+            _ = try await UsageClient().fetchUsage(token: token)
+            phase = .ready
+        } catch {
+            phase = .failed("Detected a token, but it failed verification: \(error.localizedDescription)")
+        }
+    }
+}
+
 private struct TokenHelpSheet: View {
     @Environment(\.dismiss) private var dismiss
 
@@ -442,8 +785,9 @@ private struct TokenHelpSheet: View {
                     GroupBox("Option B — Detect from Cursor app") {
                         VStack(alignment: .leading, spacing: 8) {
                             step(1, "Make sure the Cursor desktop app is installed and you are signed in.")
-                            step(2, "In Settings → Account, click Detect from Cursor and confirm.")
-                            step(3, "If the token is found and verifies, click Save Token, then Refresh from Details.")
+                            step(2, "In Settings → Account, click Detect from Cursor.")
+                            step(3, "Review the detected value and expiration, then click Use new Token to fill the field.")
+                            step(4, "Click Save Token, then Refresh from Details.")
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.vertical, 4)
