@@ -23,9 +23,13 @@ struct DetailsPopoverView: View {
     @ViewBuilder
     private var header: some View {
         HStack(alignment: .center, spacing: 8) {
-            Image(systemName: "chart.bar.fill")
-                .font(.system(size: MacUI.Density.iconSize * fontScale))
-                .foregroundStyle(MacUI.Colors.secondaryText)
+            Image(nsImage: MacUI.appIcon(pointSize: MacUI.Density.iconSize * fontScale))
+                .resizable()
+                .interpolation(.high)
+                .frame(
+                    width: MacUI.Density.iconSize * fontScale,
+                    height: MacUI.Density.iconSize * fontScale
+                )
                 .accessibilityHidden(true)
             Text("Cursor Usage")
                 .font(MacUI.headlineFont(scale: fontScale * 1.08))

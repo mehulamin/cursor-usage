@@ -25,6 +25,27 @@ enum MacUI {
         static let focusHaloWidth: CGFloat = 3
     }
 
+    /// Bundled application icon, scaled for chrome (popover header).
+    /// Full-color — not a template — so brand colors stay intact.
+    static func appIcon(pointSize: CGFloat) -> NSImage {
+        let source = NSApp.applicationIconImage
+            ?? NSImage(named: NSImage.applicationIconName)
+            ?? NSImage(size: NSSize(width: pointSize, height: pointSize))
+        let size = NSSize(width: pointSize, height: pointSize)
+        let image = NSImage(size: size, flipped: false) { rect in
+            NSGraphicsContext.current?.imageInterpolation = .high
+            source.draw(
+                in: rect,
+                from: NSRect(origin: .zero, size: source.size),
+                operation: .sourceOver,
+                fraction: 1
+            )
+            return true
+        }
+        image.isTemplate = false
+        return image
+    }
+
     // MARK: - Color roles
 
     enum Colors {
