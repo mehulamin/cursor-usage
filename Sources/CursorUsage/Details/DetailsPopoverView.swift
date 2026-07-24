@@ -65,13 +65,13 @@ struct DetailsPopoverView: View {
                     Button("Open Settings…") {
                         viewModel.openSettings()
                     }
-                    .buttonStyle(.macPrimary)
+                    .buttonStyle(.glassProminent)
                     .keyboardShortcut(",", modifiers: .command)
                 } else {
                     Button("Try Again") {
                         Task { await viewModel.refresh() }
                     }
-                    .buttonStyle(.macPrimary)
+                    .buttonStyle(.glassProminent)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -148,9 +148,7 @@ struct DetailsPopoverView: View {
 
     private var footer: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Rectangle()
-                .fill(MacUI.Colors.divider)
-                .frame(height: 1)
+            Divider()
             HStack(alignment: .center, spacing: MacUI.Density.gap) {
                 Button {
                     viewModel.openCursorDashboard()
@@ -161,7 +159,7 @@ struct DetailsPopoverView: View {
                         Text("Open online")
                     }
                 }
-                .buttonStyle(.macSecondary)
+                .buttonStyle(.glass)
 
                 Spacer(minLength: 8)
 
@@ -177,10 +175,9 @@ struct DetailsPopoverView: View {
                         Task { await viewModel.refresh() }
                     } label: {
                         Image(systemName: "arrow.clockwise")
-                            .font(.system(size: MacUI.Density.iconSize * fontScale))
-                            .frame(width: MacUI.Density.controlHeight, height: MacUI.Density.controlHeight)
                     }
-                    .buttonStyle(.macSecondary)
+                    .buttonStyle(.glass)
+                    .controlSize(.small)
                     .disabled(isLoading)
                     .help("Refresh usage")
                     .accessibilityLabel("Refresh")

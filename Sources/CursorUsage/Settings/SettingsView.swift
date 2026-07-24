@@ -190,8 +190,15 @@ struct SettingsView: View {
     private var refreshPage: some View {
         Form {
             Section {
-                Stepper(value: $settings.refreshIntervalMinutes, in: 5...60, step: 5) {
-                    Text("Every \(settings.refreshIntervalMinutes) minutes")
+                LabeledContent("Refresh interval") {
+                    Picker("Refresh interval", selection: $settings.refreshIntervalMinutes) {
+                        ForEach(Array(stride(from: 5, through: 60, by: 5)), id: \.self) { minutes in
+                            Text("\(minutes) minutes")
+                                .tag(minutes)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
                 }
                 .onChange(of: settings.refreshIntervalMinutes) { _, _ in
                     viewModel.reschedule()

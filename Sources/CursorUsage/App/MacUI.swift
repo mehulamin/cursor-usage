@@ -9,7 +9,7 @@ enum MacUI {
     enum Density {
         static let controlHeight: CGFloat = 28
         static let fontSize: CGFloat = 13
-        static let cornerRadius: CGFloat = 6
+        static let cornerRadius: CGFloat = 12
         static let gap: CGFloat = 12
         static let buttonPaddingH: CGFloat = 14
         static let dialogPad: CGFloat = 20
@@ -147,10 +147,6 @@ struct MacOpaqueCard: ViewModifier {
             .background(
                 MacUI.Colors.cardBackground,
                 in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(MacUI.Colors.border, lineWidth: 1)
             )
     }
 }
