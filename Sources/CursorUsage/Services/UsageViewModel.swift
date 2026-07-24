@@ -204,9 +204,9 @@ final class UsageViewModel: ObservableObject {
             return "…"
         case .error(let message):
             if message.localizedCaseInsensitiveContains("token") || message.localizedCaseInsensitiveContains("paste") {
-                return "set token"
+                return "Set Token"
             }
-            return "error"
+            return "Error"
         case .loaded(let snap):
             let template = settings.menuBarTemplate.trimmingCharacters(in: .whitespacesAndNewlines)
             return MenuBarTemplate.render(

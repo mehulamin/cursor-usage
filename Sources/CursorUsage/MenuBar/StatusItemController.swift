@@ -3,13 +3,14 @@ import Combine
 import SwiftUI
 
 /// Owns the menu-bar status item, dropdown menu, and Details popover.
-/// Left-click → Details popover. Right-click (or Control-click) → menu.
+/// Left-click → Details popover (complex metrics UI). Right-click / Control-click → menu.
 @MainActor
 final class StatusItemController: NSObject, ObservableObject {
     static let shared = StatusItemController()
 
     private var statusItem: NSStatusItem?
     private var statusMenu: NSMenu?
+    private var refreshMenuItem: NSMenuItem?
     private var popover: NSPopover?
     private var viewModel: UsageViewModel { .shared }
     private var settings: AppSettings { .shared }
@@ -29,31 +30,13 @@ final class StatusItemController: NSObject, ObservableObject {
         guard let button = item.button else { return }
         statusItem = item
 
-        button.toolTip = "Cursor Usage"
         button.setAccessibilityTitle("Cursor Usage")
         button.target = self
         button.action = #selector(statusItemClicked(_:))
         button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+        button.imagePosition = .imageLeading
 
-        let menu = NSMenu(title: "Cursor Usage")
-        menu.autoenablesItems = false
-        menu.delegate = self
-
-        let settingsItem = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
-        settingsItem.target = self
-        settingsItem.isEnabled = true
-        settingsItem.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: "Settings")
-        menu.addItem(settingsItem)
-
-        menu.addItem(.separator())
-
-        let quit = NSMenuItem(title: "Quit Cursor Usage", action: #selector(quitApp), keyEquivalent: "q")
-        quit.target = self
-        quit.isEnabled = true
-        quit.image = NSImage(systemSymbolName: "power", accessibilityDescription: "Quit")
-        menu.addItem(quit)
-
-        statusMenu = menu
+        statusMenu = makeStatusMenu()
         // Do not assign item.menu permanently — that would make left-click open the menu.
 
         // Menu-bar contrast follows the wallpaper behind the item, not the app theme.
@@ -91,6 +74,55 @@ final class StatusItemController: NSObject, ObservableObject {
         updateTitle()
     }
 
+    private func makeStatusMenu() -> NSMenu {
+        let menu = NSMenu(title: "Cursor Usage")
+        menu.autoenablesItems = false
+        menu.delegate = self
+
+        let refresh = NSMenuItem(
+            title: "Refresh",
+            action: #selector(refreshUsage),
+            keyEquivalent: "r"
+        )
+        refresh.target = self
+        refresh.image = NSImage(systemSymbolName: "arrow.clockwise", accessibilityDescription: "Refresh")
+        menu.addItem(refresh)
+        refreshMenuItem = refresh
+
+        let openOnline = NSMenuItem(
+            title: "Open Online…",
+            action: #selector(openOnline),
+            keyEquivalent: ""
+        )
+        openOnline.target = self
+        openOnline.image = NSImage(systemSymbolName: "arrow.up.right", accessibilityDescription: "Open Online")
+        menu.addItem(openOnline)
+
+        menu.addItem(.separator())
+
+        let settingsItem = NSMenuItem(
+            title: "Settings…",
+            action: #selector(openSettings),
+            keyEquivalent: ","
+        )
+        settingsItem.target = self
+        settingsItem.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: "Settings")
+        menu.addItem(settingsItem)
+
+        menu.addItem(.separator())
+
+        let quit = NSMenuItem(
+            title: "Quit Cursor Usage",
+            action: #selector(quitApp),
+            keyEquivalent: "q"
+        )
+        quit.target = self
+        quit.image = NSImage(systemSymbolName: "power", accessibilityDescription: "Quit")
+        menu.addItem(quit)
+
+        return menu
+    }
+
     @objc private func appearanceChanged() {
         updateTitle()
     }
@@ -113,35 +145,63 @@ final class StatusItemController: NSObject, ObservableObject {
     private func showStatusMenu() {
         guard let item = statusItem, let menu = statusMenu, let button = item.button else { return }
         closePopover()
+        refreshMenuItem?.isEnabled = !isLoading
         // Temporarily attach the menu so the status item can pop it up correctly,
         // then clear it in menuDidClose so the next left-click stays on Details.
         item.menu = menu
         button.performClick(nil)
     }
 
+    private var isLoading: Bool {
+        if case .loading = viewModel.state { return true }
+        return false
+    }
+
     func updateTitle() {
         guard let button = statusItem?.button else { return }
         let title = viewModel.statusTitle()
         let font = NSFont.menuBarFont(ofSize: settings.fontSize.menuBarPointSize)
-        let color = menuBarTitleColor(for: button)
+        let severity = viewModel.statusSeverity()
+        let tint = menuBarTintColor(for: severity)
 
-        button.contentTintColor = nil
-        button.attributedTitle = NSAttributedString(
-            string: title,
-            attributes: [
-                .font: font,
-                .foregroundColor: color
-            ]
+        let symbol = NSImage(
+            systemSymbolName: "chart.bar.fill",
+            accessibilityDescription: "Cursor Usage"
         )
-        button.toolTip = "Cursor Usage — click for details, right-click for menu"
+        let configured = symbol?.withSymbolConfiguration(
+            NSImage.SymbolConfiguration(pointSize: 12, weight: .medium)
+        )
+        configured?.isTemplate = true
+        button.image = configured
+        button.imagePosition = .imageLeading
+
+        if let tint {
+            // Severity colors need an attributed title; template image follows contentTintColor.
+            button.contentTintColor = tint
+            button.attributedTitle = NSAttributedString(
+                string: title,
+                attributes: [
+                    .font: font,
+                    .foregroundColor: tint
+                ]
+            )
+        } else {
+            // Plain title lets the system adapt text + template glyph to the menu bar.
+            button.contentTintColor = nil
+            button.attributedTitle = NSAttributedString(string: "")
+            button.font = font
+            button.title = title
+        }
+
+        button.toolTip = "Cursor Usage"
+        button.setAccessibilityValue(title)
         button.appearsDisabled = false
         button.isEnabled = true
     }
 
-    /// Readable on both light and dark menu-bar regions (wallpaper-driven).
-    private func menuBarTitleColor(for button: NSStatusBarButton) -> NSColor {
-        let dark = isDarkAppearance(button.effectiveAppearance)
-        switch viewModel.statusSeverity() {
+    /// `nil` = system-adaptive (normal). Otherwise a system status color.
+    private func menuBarTintColor(for severity: MenuBarSeverity) -> NSColor? {
+        switch severity {
         case .warning:
             return .systemYellow
         case .critical:
@@ -149,12 +209,8 @@ final class StatusItemController: NSObject, ObservableObject {
         case .error:
             return .systemRed
         case .normal:
-            return dark ? .white : .black
+            return nil
         }
-    }
-
-    private func isDarkAppearance(_ appearance: NSAppearance) -> Bool {
-        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
     }
 
     @objc func showDetails() {
@@ -175,7 +231,7 @@ final class StatusItemController: NSObject, ObservableObject {
         popover.behavior = .transient
         popover.animates = true
         popover.delegate = self
-        // Content sizes itself; glass chrome lives in DetailsPopoverView.
+        // Content sizes itself; system NSPopover supplies Liquid Glass chrome.
         popover.contentSize = NSSize(width: 340, height: 1)
 
         let root = DetailsPopoverView()
@@ -204,6 +260,14 @@ final class StatusItemController: NSObject, ObservableObject {
                 self?.installOutsideClickMonitors()
             }
         }
+    }
+
+    @objc func refreshUsage() {
+        Task { await viewModel.refresh() }
+    }
+
+    @objc func openOnline() {
+        viewModel.openCursorDashboard()
     }
 
     @objc func openSettings() {
@@ -272,6 +336,10 @@ final class StatusItemController: NSObject, ObservableObject {
 }
 
 extension StatusItemController: NSMenuDelegate {
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        refreshMenuItem?.isEnabled = !isLoading
+    }
+
     func menuDidClose(_ menu: NSMenu) {
         // Detach so left-click does not open the menu next time.
         statusItem?.menu = nil
