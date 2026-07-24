@@ -42,6 +42,7 @@ final class StatusItemController: NSObject, ObservableObject {
         let settingsItem = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
         settingsItem.target = self
         settingsItem.isEnabled = true
+        settingsItem.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: "Settings")
         menu.addItem(settingsItem)
 
         menu.addItem(.separator())

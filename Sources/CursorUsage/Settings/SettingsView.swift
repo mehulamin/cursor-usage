@@ -119,15 +119,15 @@ struct SettingsView: View {
                 .accessibilityLabel("Start at Login")
 
                 if launchAtLogin.requiresApproval {
-                    HStack(alignment: .firstTextBaseline) {
-                        Text("Approval needed in System Settings.")
-                            .foregroundStyle(.orange)
-                            .font(.callout)
-                        Spacer()
+                    LabeledContent {
                         Button("Open Login Items…") {
                             launchAtLogin.openLoginItemsSettings()
                         }
-                        .buttonStyle(.macSecondary)
+                        .buttonStyle(.glass)
+                    } label: {
+                        Text("Approval needed in System Settings.")
+                            .foregroundStyle(.orange)
+                            .font(.callout)
                     }
                 }
 
@@ -154,7 +154,6 @@ struct SettingsView: View {
 
             Section {
                 TextField("Format", text: $settings.menuBarTemplate)
-                    .textFieldStyle(.roundedBorder)
                     .font(.system(.body, design: .monospaced))
                     .accessibilityLabel("Menu bar format")
 
@@ -168,16 +167,13 @@ struct SettingsView: View {
                 Button("Reset to Default") {
                     settings.menuBarTemplate = MenuBarTemplate.defaultTemplate
                 }
-                .buttonStyle(.macSecondary)
+                .buttonStyle(.glass)
                 .disabled(settings.menuBarTemplate == MenuBarTemplate.defaultTemplate)
-
-                Text(menuBarTemplateFooter)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
             } header: {
                 Text("Menu Bar")
+            } footer: {
+                Text(menuBarTemplateFooter)
+                    .textSelection(.enabled)
             }
         }
         .formStyle(.grouped)
@@ -215,7 +211,7 @@ struct SettingsView: View {
                 Toggle("Screen unlock", isOn: $settings.refreshOnScreenUnlock)
                 Toggle("User session active", isOn: $settings.refreshOnSessionActive)
             } header: {
-                Text("System triggers")
+                Text("System Triggers")
             } footer: {
                 Text("Optional events that refresh usage, independent of the timer.")
             }
@@ -227,27 +223,16 @@ struct SettingsView: View {
     private var accountPage: some View {
         Form {
             Section {
-                HStack(alignment: .firstTextBaseline) {
-                    Text("WorkosCursorSessionToken")
-                        .font(.headline)
-                    Spacer()
+                LabeledContent("WorkosCursorSessionToken") {
                     Button {
                         showingTokenHelp = true
                     } label: {
                         Image(systemName: "info.circle")
-                            .symbolRenderingMode(.hierarchical)
-                            .foregroundStyle(.secondary)
-                            .imageScale(.large)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.borderless)
                     .help("How to update your Cursor session token")
                     .accessibilityLabel("How to update your Cursor session token")
                 }
-
-                Text("This is the cookie / session token the app uses to fetch Cursor usage.")
-                    .foregroundStyle(.secondary)
-                    .font(.callout)
-                    .fixedSize(horizontal: false, vertical: true)
 
                 HStack(alignment: .top) {
                     Group {
@@ -258,7 +243,6 @@ struct SettingsView: View {
                             SecureField("Paste token here", text: $tokenDraft)
                         }
                     }
-                    .textFieldStyle(.roundedBorder)
                     .onSubmit(saveToken)
 
                     Button {
@@ -266,7 +250,10 @@ struct SettingsView: View {
                     } label: {
                         Image(systemName: showToken ? "eye.slash" : "eye")
                     }
+                    .buttonStyle(.borderless)
+                    .controlSize(.small)
                     .help(showToken ? "Hide token" : "Show token")
+                    .accessibilityLabel(showToken ? "Hide token" : "Show token")
                 }
 
                 LabeledContent("Expires") {
@@ -281,19 +268,19 @@ struct SettingsView: View {
                         settings.sessionToken = ""
                         detectMessage = nil
                     }
-                    .buttonStyle(.macDestructive)
+                    .buttonStyle(.glass)
 
                     Spacer(minLength: 0)
 
                     Button("Detect from Cursor") {
                         showingDetectToken = true
                     }
-                    .buttonStyle(.macSecondary)
+                    .buttonStyle(.glass)
 
                     Button("Save Token") {
                         saveToken()
                     }
-                    .buttonStyle(.macPrimary)
+                    .buttonStyle(.glassProminent)
                     .keyboardShortcut(.defaultAction)
                     .disabled(!canSaveToken)
                 }
@@ -306,7 +293,7 @@ struct SettingsView: View {
             } header: {
                 Text("Cursor Session")
             } footer: {
-                Text("When the token expires, usage refresh fails until you paste a new WorkosCursorSessionToken or detect it again from Cursor.")
+                Text("Cookie / session token used to fetch Cursor usage. When it expires, refresh fails until you paste a new WorkosCursorSessionToken or detect it again from Cursor.")
             }
         }
         .formStyle(.grouped)
@@ -322,12 +309,12 @@ struct SettingsView: View {
                     Button("Import…") {
                         importSettings()
                     }
-                    .buttonStyle(.macSecondary)
+                    .buttonStyle(.glass)
                     Spacer(minLength: 0)
                     Button("Export…") {
                         exportSettings()
                     }
-                    .buttonStyle(.macPrimary)
+                    .buttonStyle(.glassProminent)
                 }
 
                 if let transferMessage {
@@ -492,9 +479,7 @@ private struct DetectTokenSheet: View {
             .padding(.horizontal, MacUI.Density.dialogPad)
             .padding(.bottom, MacUI.Density.gap)
 
-            Rectangle()
-                .fill(MacUI.Colors.divider)
-                .frame(height: 1)
+            Divider()
 
             MacDialogFooter {
                 EmptyView()
@@ -503,7 +488,7 @@ private struct DetectTokenSheet: View {
                     Button("Cancel") {
                         dismiss()
                     }
-                    .buttonStyle(.macSecondary)
+                    .buttonStyle(.glass)
                     .keyboardShortcut(.cancelAction)
 
                     Button("Use new Token") {
@@ -511,7 +496,7 @@ private struct DetectTokenSheet: View {
                         onUseToken(detectedToken)
                         dismiss()
                     }
-                    .buttonStyle(.macPrimary)
+                    .buttonStyle(.glassProminent)
                     .keyboardShortcut(.defaultAction)
                     .disabled(!canUseNewToken)
                 }
@@ -521,7 +506,6 @@ private struct DetectTokenSheet: View {
         .foregroundStyle(MacUI.Colors.primaryText)
         .frame(width: 520)
         .fixedSize(horizontal: false, vertical: true)
-        .background(MacUI.Colors.sheetFallback.opacity(0.001))
         .task {
             await detect()
         }
@@ -579,11 +563,11 @@ private struct DetectTokenSheet: View {
                     showDetectedToken.toggle()
                 } label: {
                     Image(systemName: showDetectedToken ? "eye.slash" : "eye")
-                        .font(.system(size: MacUI.Density.iconSize))
-                        .frame(width: MacUI.Density.controlHeight, height: MacUI.Density.controlHeight)
                 }
-                .buttonStyle(.macSecondary)
+                .buttonStyle(.glass)
+                .controlSize(.small)
                 .help(showDetectedToken ? "Hide token" : "Show token")
+                .accessibilityLabel(showDetectedToken ? "Hide token" : "Show token")
             }
         }
     }
@@ -673,9 +657,7 @@ private struct DetectTokenSheet: View {
     }
 
     private var sheetDivider: some View {
-        Rectangle()
-            .fill(MacUI.Colors.divider)
-            .frame(height: 1)
+        Divider()
             .padding(.vertical, 8)
     }
 
@@ -894,15 +876,13 @@ private struct TokenHelpSheet: View {
                 .padding(.bottom, MacUI.Density.dialogPad)
             }
 
-            Rectangle()
-                .fill(MacUI.Colors.divider)
-                .frame(height: 1)
+            Divider()
 
             MacDialogFooter {
                 EmptyView()
             } trailing: {
                 Button("Done") { dismiss() }
-                    .buttonStyle(.macPrimary)
+                    .buttonStyle(.glassProminent)
                     .keyboardShortcut(.defaultAction)
             }
         }

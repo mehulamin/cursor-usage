@@ -40,7 +40,7 @@ enum SettingsWindowController {
         window.center()
         window.level = .floating
         window.titlebarAppearsTransparent = false
-        window.backgroundColor = NSColor(MacUI.Colors.windowBackground)
+        window.backgroundColor = .windowBackgroundColor
 
         Self.window = window
         NSApp.activate(ignoringOtherApps: true)

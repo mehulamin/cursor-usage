@@ -153,13 +153,10 @@ struct DetailsPopoverView: View {
                 Button {
                     viewModel.openCursorDashboard()
                 } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "arrow.up.right")
-                            .font(.system(size: MacUI.Density.iconSize * 0.85 * fontScale))
-                        Text("Open online")
-                    }
+                    Label("Open online", systemImage: "arrow.up.right")
                 }
                 .buttonStyle(.glass)
+                .labelStyle(.titleAndIcon)
 
                 Spacer(minLength: 8)
 
