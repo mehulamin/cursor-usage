@@ -164,28 +164,28 @@ final class StatusItemController: NSObject, ObservableObject {
         let severity = viewModel.statusSeverity()
         let tint = menuBarTintColor(for: severity)
 
-        let symbol = NSImage(
-            systemSymbolName: "chart.bar.fill",
-            accessibilityDescription: "Cursor Usage"
-        )
-        let configured = symbol?.withSymbolConfiguration(
-            NSImage.SymbolConfiguration(pointSize: 12, weight: .medium)
-        )
-        configured?.isTemplate = true
-        button.image = configured
-        button.imagePosition = .imageLeading
-
         if let tint {
-            // Severity colors need an attributed title; template image follows contentTintColor.
-            button.contentTintColor = tint
-            button.attributedTitle = NSAttributedString(
-                string: title,
-                attributes: [
-                    .font: font,
-                    .foregroundColor: tint
-                ]
-            )
+            // NSStatusBarButton silently drops contentTintColor / attributedTitle
+            // foreground colors under the menu bar's vibrancy (FB8530353), so the
+            // severity color has to be baked into rendered pixels instead.
+            button.image = Self.renderMenuBarImage(title: title, font: font, tint: tint)
+            button.imagePosition = .imageOnly
+            button.contentTintColor = nil
+            button.attributedTitle = NSAttributedString(string: "")
+            button.font = font
+            button.title = ""
         } else {
+            let symbol = NSImage(
+                systemSymbolName: "chart.bar.fill",
+                accessibilityDescription: "Cursor Usage"
+            )
+            let configured = symbol?.withSymbolConfiguration(
+                NSImage.SymbolConfiguration(pointSize: 12, weight: .medium)
+            )
+            configured?.isTemplate = true
+            button.image = configured
+            button.imagePosition = .imageLeading
+
             // Plain title lets the system adapt text + template glyph to the menu bar.
             button.contentTintColor = nil
             button.attributedTitle = NSAttributedString(string: "")
@@ -210,6 +210,46 @@ final class StatusItemController: NSObject, ObservableObject {
             return .systemRed
         case .normal:
             return nil
+        }
+    }
+
+    /// Rasterizes the chart icon + title into one non-template image so the
+    /// severity tint survives the menu bar's vibrant compositing.
+    private static func renderMenuBarImage(title: String, font: NSFont, tint: NSColor) -> NSImage {
+        let symbol = NSImage(systemSymbolName: "chart.bar.fill", accessibilityDescription: nil)?
+            .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 12, weight: .medium))
+        symbol?.isTemplate = true
+
+        let attributedTitle = NSAttributedString(
+            string: title,
+            attributes: [.font: font, .foregroundColor: tint]
+        )
+        let textSize = attributedTitle.size()
+        let iconSize = symbol?.size ?? .zero
+        let spacing: CGFloat = symbol != nil ? 4 : 0
+        let canvasSize = NSSize(
+            width: max(iconSize.width + spacing + textSize.width, 1),
+            height: max(max(iconSize.height, textSize.height), 1)
+        )
+
+        return NSImage(size: canvasSize, flipped: false) { rect in
+            if let symbol {
+                let iconRect = NSRect(
+                    x: 0,
+                    y: (rect.height - iconSize.height) / 2,
+                    width: iconSize.width,
+                    height: iconSize.height
+                )
+                symbol.draw(in: iconRect)
+                tint.setFill()
+                iconRect.fill(using: .sourceAtop)
+            }
+            let textOrigin = NSPoint(
+                x: iconSize.width + spacing,
+                y: (rect.height - textSize.height) / 2
+            )
+            attributedTitle.draw(at: textOrigin)
+            return true
         }
     }
 
