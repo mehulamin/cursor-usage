@@ -19,12 +19,14 @@ final class UsageViewModel: ObservableObject {
     let settings = AppSettings.shared
     private let client = UsageClient()
     private var refreshTask: Task<Void, Never>?
+    private var systemTriggerRefreshTask: Task<Void, Never>?
     private var timerCancellable: AnyCancellable?
     private var settingsCancellables = Set<AnyCancellable>()
     private var lastScheduledMinutes: Int?
     private var didRefreshOnLaunch = false
     private var workspaceObservers: [NSObjectProtocol] = []
     private var distributedObservers: [NSObjectProtocol] = []
+    private static let systemTriggerRefreshDelay: Duration = .seconds(3)
 
     var snapshot: UsageSnapshot? {
         if case .loaded(let s) = state { return s }
@@ -55,7 +57,7 @@ final class UsageViewModel: ObservableObject {
         rebuildSystemTriggers()
         if settings.refreshOnLaunch, !didRefreshOnLaunch {
             didRefreshOnLaunch = true
-            Task { await refresh() }
+            scheduleRefreshFromSystemTrigger()
         }
         reschedule()
     }
@@ -86,7 +88,7 @@ final class UsageViewModel: ObservableObject {
                     queue: .main
                 ) { [weak self] _ in
                     Task { @MainActor in
-                        await self?.refresh()
+                        self?.scheduleRefreshFromSystemTrigger()
                     }
                 }
             )
@@ -99,7 +101,7 @@ final class UsageViewModel: ObservableObject {
                     queue: .main
                 ) { [weak self] _ in
                     Task { @MainActor in
-                        await self?.refresh()
+                        self?.scheduleRefreshFromSystemTrigger()
                     }
                 }
             )
@@ -112,10 +114,21 @@ final class UsageViewModel: ObservableObject {
                     queue: .main
                 ) { [weak self] _ in
                     Task { @MainActor in
-                        await self?.refresh()
+                        self?.scheduleRefreshFromSystemTrigger()
                     }
                 }
             )
+        }
+    }
+
+    /// System triggers (launch, wake, unlock, session active) wait briefly so the
+    /// network stack can settle before fetching usage.
+    private func scheduleRefreshFromSystemTrigger() {
+        systemTriggerRefreshTask?.cancel()
+        systemTriggerRefreshTask = Task { @MainActor in
+            try? await Task.sleep(for: Self.systemTriggerRefreshDelay)
+            guard !Task.isCancelled else { return }
+            await refresh()
         }
     }
 
