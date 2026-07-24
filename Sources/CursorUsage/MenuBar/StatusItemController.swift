@@ -199,13 +199,13 @@ final class StatusItemController: NSObject, ObservableObject {
         button.isEnabled = true
     }
 
-    /// `nil` = system-adaptive (normal). Otherwise a system status color.
+    /// `nil` = system-adaptive (normal). Otherwise matches Details pace colors.
     private func menuBarTintColor(for severity: MenuBarSeverity) -> NSColor? {
         switch severity {
         case .warning:
-            return .systemYellow
+            return PaceSeverity.warning.nsColor
         case .critical:
-            return .systemOrange
+            return PaceSeverity.critical.nsColor
         case .error:
             return .systemRed
         case .normal:

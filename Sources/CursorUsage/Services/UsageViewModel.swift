@@ -219,8 +219,8 @@ final class UsageViewModel: ObservableObject {
     func statusSeverity() -> MenuBarSeverity {
         switch state {
         case .loaded(let snap):
-            // Color from estimated end-of-cycle Total only (not Auto/API).
-            switch snap.totalPace.severity {
+            // Color from the highest pace threshold across Auto, API, and Total.
+            switch snap.overallSeverity {
             case .none: return .normal
             case .warning: return .warning
             case .critical: return .critical
