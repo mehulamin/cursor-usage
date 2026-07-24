@@ -84,11 +84,19 @@ struct SettingsView: View {
             if selectedPage == nil {
                 selectedPage = .general
             }
+            syncUnsavedChangesFlag()
+        }
+        .onDisappear {
+            SettingsWindowController.hasUnsavedChanges = false
         }
         .onChange(of: settings.sessionToken) { _, newValue in
             if tokenDraft != newValue {
                 tokenDraft = newValue
             }
+            syncUnsavedChangesFlag()
+        }
+        .onChange(of: tokenDraft) { _, _ in
+            syncUnsavedChangesFlag()
         }
         .sheet(isPresented: $showingTokenHelp) {
             TokenHelpSheet()
@@ -358,6 +366,10 @@ struct SettingsView: View {
 
     private var canSaveToken: Bool {
         TokenStore.normalizeToken(tokenDraft) != TokenStore.normalizeToken(settings.sessionToken)
+    }
+
+    private func syncUnsavedChangesFlag() {
+        SettingsWindowController.hasUnsavedChanges = canSaveToken
     }
 
     private var expirationColor: Color {
